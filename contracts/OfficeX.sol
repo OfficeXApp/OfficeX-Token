@@ -5,6 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol"; 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; 
 
+// github.com/OfficeXApp
+// https://officex.app
 contract OfficeX is ERC20, Ownable, ReentrancyGuard {
     
     mapping(address => bool) public allowlist;
@@ -18,7 +20,7 @@ contract OfficeX is ERC20, Ownable, ReentrancyGuard {
 
     constructor(
         address adminAddress
-    ) ERC20("OfficeXDemo", "OFFICEXDEMO") Ownable(adminAddress) {
+    ) ERC20("OfficeX", "OFFICEX") Ownable(adminAddress) {
         require(adminAddress != address(0), "Invalid address");
         
         allowlist[msg.sender] = true;

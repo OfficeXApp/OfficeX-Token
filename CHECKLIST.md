@@ -13,6 +13,8 @@
 11. [ ] Allowlist the fundraiser address so theres no 1% burn
 12. [ ] Deposit the 144.44M tokens into fundraiser contract
 13. [ ] Buy the first set of tokens
+14. [ ] Deploy the PresaleLock contract & setFundraiser
+15. [ ] Allowlist the PresaleLock contract
 
 # Authentications
 

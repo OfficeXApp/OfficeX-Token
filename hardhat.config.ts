@@ -11,6 +11,8 @@ const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY || "";
 const ARBITRUM_RPC_URL = process.env.ARBITRUM_RPC_URL || "";
 const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL || "";
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
+const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY || "";
+const BASE_RPC_URL = process.env.BASE_RPC_URL || "";
 
 const config: HardhatUserConfig = {
   solidity: "0.8.24",
@@ -18,11 +20,16 @@ const config: HardhatUserConfig = {
     apiKey: {
       sepolia: ETHERSCAN_API_KEY,
       polygon: POLYGONSCAN_API_KEY,
+      base: BASESCAN_API_KEY,
     },
   },
   networks: {
     sepolia: {
       url: SEPOLIA_RPC_URL,
+      accounts: [DEPLOYER_PRIVATE_KEY],
+    },
+    base: {
+      url: BASE_RPC_URL,
       accounts: [DEPLOYER_PRIVATE_KEY],
     },
     arbitrum: {
