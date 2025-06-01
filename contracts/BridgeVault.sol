@@ -25,6 +25,7 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         uint256 amount;
         string receivingWalletAddress;
         DepositStatus status;
+        string txFinal;
     }
     
     mapping(uint256 => Deposit) public deposits;
@@ -78,7 +79,8 @@ contract BridgeVault is Ownable, ReentrancyGuard {
             depositor: msg.sender,
             amount: tokenAmount,
             receivingWalletAddress: receivingWalletAddress,
-            status: DepositStatus.Awaiting
+            status: DepositStatus.Awaiting,
+            txFinal: ""
         });
         
         // Update accounting
@@ -122,21 +124,21 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         emit Cancel(msg.sender, depositId, dep.amount);
     }
     
-    function lockDeposit(uint256 depositId, bool unlock) external onlyOwner {
+    function lockDeposit(uint256 depositId, bool lock) external onlyOwner {
         require(depositId < depositCounter, "Invalid deposit ID");
         
         Deposit storage dep = deposits[depositId];
         
-        if (unlock) {
-            require(dep.status == DepositStatus.Locked, "Can only unlock locked deposits");
-            dep.status = DepositStatus.Awaiting;
-        } else {
+        if (lock) {
             require(dep.status == DepositStatus.Awaiting, "Can only lock awaiting deposits");
             dep.status = DepositStatus.Locked;
+        } else {
+            require(dep.status == DepositStatus.Locked, "Can only unlock locked deposits");
+            dep.status = DepositStatus.Awaiting;
         }
         
         // Emit event with lock status
-        emit Lock(depositId, dep.amount, !unlock);
+        emit Lock(depositId, dep.amount, lock);
     }
     
     function burnDeposit(uint256 depositId, string calldata txHash) external onlyOwner {
@@ -152,9 +154,9 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         require(token.balanceOf(address(this)) >= burnAmount, "Insufficient contract balance");
         
         
-        // Burn tokens by sending to zero address
+        // Burn tokens by sending to dead address
         require(
-            token.transfer(address(0), burnAmount),
+            token.transfer(0x000000000000000000000000000000000000dEaD, burnAmount),
             "Token burn failed"
         );
         
@@ -162,8 +164,9 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         // Update accounting
         totalNetBurnt += burnAmount;
         
-        // Update deposit status
+        // Update deposit status and set txFinal
         dep.status = DepositStatus.Burnt;
+        dep.txFinal = txHash;
         
         // Emit event
         emit Burn(depositId, burnAmount, txHash);

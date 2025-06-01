@@ -11,7 +11,6 @@ import {
   Row,
   Col,
   Statistic,
-  Modal,
   Spin,
   Tabs,
   Divider,
@@ -19,6 +18,7 @@ import {
   Layout,
   theme,
   Alert,
+  Tooltip,
 } from "antd";
 import {
   WalletOutlined,
@@ -32,6 +32,7 @@ import {
   ClockCircleOutlined,
   CloseCircleOutlined,
   LockOutlined,
+  ExportOutlined,
 } from "@ant-design/icons";
 import {
   createWalletClient,
@@ -60,7 +61,7 @@ declare global {
 const BRIDGE_ABI = parseAbi([
   "function depositToBridge(uint256 tokenAmount, string calldata receivingWalletAddress) external",
   "function cancelBridge(uint256 depositId) external",
-  "function deposits(uint256) external view returns (address depositor, uint256 amount, string receivingWalletAddress, uint8 status)",
+  "function deposits(uint256) external view returns (address depositor, uint256 amount, string receivingWalletAddress, uint8 status, string txFinal)",
   "function depositCounter() external view returns (uint256)",
   "function totalNetDeposited() external view returns (uint256)",
   "function token() external view returns (address)",
@@ -81,7 +82,7 @@ const ERC20_ABI = parseAbi([
 
 // Contract addresses (you'll need to replace these with actual deployed addresses)
 const BRIDGE_CONTRACT_ADDRESS =
-  "0x0794d2eC4Af68b57496be40171F554F467607371" as const;
+  "0x41fc57bB7ec89BcEd6C0a4E2B313b6Ccd83d8AA3" as const;
 const TOKEN_CONTRACT_ADDRESS =
   "0x4E9E4d2c145d5Df6D8eBCfBa947a6406F46d5BE0" as const;
 
@@ -92,6 +93,7 @@ interface DepositData {
   amount: string;
   receivingWalletAddress: string;
   status: number;
+  txHash: string;
 }
 
 interface TokenInfo {
@@ -105,13 +107,38 @@ interface DepositStatusConfig {
   label: string;
   color: "processing" | "error" | "warning" | "success";
   icon: React.ReactNode;
+  tooltip: string;
 }
 
 const DepositStatus: Record<number, DepositStatusConfig> = {
-  0: { label: "Awaiting", color: "processing", icon: <ClockCircleOutlined /> },
-  1: { label: "Canceled", color: "error", icon: <CloseCircleOutlined /> },
-  2: { label: "Locked", color: "warning", icon: <LockOutlined /> },
-  3: { label: "Completed", color: "success", icon: <CheckCircleOutlined /> },
+  0: {
+    label: "Awaiting",
+    color: "processing",
+    icon: <ClockCircleOutlined />,
+    tooltip:
+      "Awaiting up to 48 hours to bridge. You may cancel at any time to get your tokens back.",
+  },
+  1: {
+    label: "Canceled",
+    color: "error",
+    icon: <CloseCircleOutlined />,
+    tooltip:
+      "Deposit was canceled. If you need to bridge again, please create a new deposit.",
+  },
+  2: {
+    label: "Locked",
+    color: "warning",
+    icon: <LockOutlined />,
+    tooltip:
+      "Deposit is locked and processing. You cannot cancel or modify this deposit, just wait for it to complete and your tokens to be sent to you on Solana.",
+  },
+  3: {
+    label: "Completed",
+    color: "success",
+    icon: <CheckCircleOutlined />,
+    tooltip:
+      "Deposit completed. Your tokens have been sent to you on Solana. Check your receiving wallet.",
+  },
 };
 
 function BridgeVaultFrontend() {
@@ -260,6 +287,7 @@ function BridgeVaultFrontend() {
               amount: formatEther(deposit[1]),
               receivingWalletAddress: deposit[2],
               status: Number(deposit[3]),
+              txHash: deposit[4] || "",
             });
           }
         } catch (error) {
@@ -451,7 +479,9 @@ function BridgeVaultFrontend() {
         ellipsis: true,
         render: (address: string) => (
           <Text code style={{ fontSize: "12px" }}>
-            {address.slice(0, 8)}...{address.slice(-6)}
+            <a href={`https://solscan.io/account/${address}`} target="_blank">
+              {address.slice(0, 8)}...{address.slice(-6)}
+            </a>
           </Text>
         ),
       },
@@ -462,19 +492,21 @@ function BridgeVaultFrontend() {
         render: (status: number) => {
           const statusConfig = DepositStatus[status];
           return (
-            <Tag color={statusConfig?.color} icon={statusConfig?.icon}>
-              {statusConfig?.label}
-            </Tag>
+            <Tooltip title={statusConfig?.tooltip}>
+              <Tag color={statusConfig?.color} icon={statusConfig?.icon}>
+                {statusConfig?.label}
+              </Tag>
+            </Tooltip>
           );
         },
       },
       {
         title: "Actions",
         key: "actions",
-        width: 100,
+        width: 200,
         render: (_: any, record: DepositData) => (
           <Space>
-            {record.status === 0 && (
+            {record.status === 0 ? (
               <Button
                 size="small"
                 danger
@@ -489,7 +521,23 @@ function BridgeVaultFrontend() {
               >
                 Cancel
               </Button>
-            )}
+            ) : record.status === 3 ? (
+              <Button
+                size="small"
+                type="primary"
+                icon={<ExportOutlined />}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.open(
+                    `https://solscan.io/tx/${record.txHash}`,
+                    "_blank"
+                  );
+                }}
+              >
+                View Tx
+              </Button>
+            ) : null}
           </Space>
         ),
       },
@@ -840,18 +888,18 @@ function BridgeVaultFrontend() {
 
               <div style={{ marginBottom: "24px" }}>
                 <Text strong style={{ fontSize: "16px" }}>
-                  Destination Address
+                  Solana Destination Address
                 </Text>
                 <Input
                   size="large"
-                  placeholder="Enter wallet address on destination chain"
+                  placeholder="Enter wallet address on Solana mainnet"
                   value={receivingAddress}
                   onChange={handleReceivingAddressChange}
                   disabled={loading}
                   style={{ marginTop: "8px" }}
                 />
                 <Text type="secondary" style={{ fontSize: "12px" }}>
-                  Make sure this address supports the destination token
+                  Bridging may take up to 48 hours
                 </Text>
               </div>
 
