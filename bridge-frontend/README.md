@@ -1,54 +1,34 @@
-# React + TypeScript + Vite
+# Bridge OfficeX Base to Solana
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Usage Instructions
 
-Currently, two official plugins are available:
+Users will manually deposit their tokens to the bridge vault on Base and wait for the transaction to be confirmed.
+Admin will then manually confirm the deposit and manually release the tokens to the user's Solana wallet.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Admin must:
 
-## Expanding the ESLint configuration
+1. Get the depositID from basescan `depositCounter` and check against `deposits` to return struct `Deposit` below. Specifically admin needs `Deposit.amount` and `Deposit.receivingWalletAddress`.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```solidity
+struct Deposit {
+    uint256 depositId;
+    address depositor;
+    uint256 amount;
+    string receivingWalletAddress;
+    DepositStatus status;
+    string txFinal;
+}
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. Lock the deposit via basescan `lockDeposit`
+3. Manually transfer Solana tokens to the receiving wallet address, making sure to account for decimals (18 on base, 9 on Solana) ⚠️ DANGER ⚠️ Be very careful
+4. Burn the deposit via basescan `burnDeposit`
+5. The deposit will automatically be marked as completed on frontend. If the user provided their email, send them a notification via email.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Deploy the frontend
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
+Deploy the frontend:
+
+```
+$ npm run build && firebase deploy --project bridge-officex
 ```

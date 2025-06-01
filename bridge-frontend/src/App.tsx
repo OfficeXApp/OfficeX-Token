@@ -61,7 +61,7 @@ declare global {
 const BRIDGE_ABI = parseAbi([
   "function depositToBridge(uint256 tokenAmount, string calldata receivingWalletAddress) external",
   "function cancelBridge(uint256 depositId) external",
-  "function deposits(uint256) external view returns (address depositor, uint256 amount, string receivingWalletAddress, uint8 status, string txFinal)",
+  "function deposits(uint256) external view returns (uint256 depositId, address depositor, uint256 amount, string receivingWalletAddress, uint8 status, string txFinal)",
   "function depositCounter() external view returns (uint256)",
   "function totalNetDeposited() external view returns (uint256)",
   "function token() external view returns (address)",
@@ -89,6 +89,7 @@ const TOKEN_CONTRACT_ADDRESS =
 // Types
 interface DepositData {
   id: number;
+  depositId: number;
   depositor: string;
   amount: string;
   receivingWalletAddress: string;
@@ -280,14 +281,15 @@ function BridgeVaultFrontend() {
       for (let i = 0; i < depositCounter; i++) {
         try {
           const deposit = await bridgeContract.read.deposits([BigInt(i)]);
-          if (deposit[0].toLowerCase() === account.toLowerCase()) {
+          if (deposit[1].toLowerCase() === account.toLowerCase()) {
             userDeposits.push({
               id: i,
-              depositor: deposit[0],
-              amount: formatEther(deposit[1]),
-              receivingWalletAddress: deposit[2],
-              status: Number(deposit[3]),
-              txHash: deposit[4] || "",
+              depositId: Number(deposit[0]),
+              depositor: deposit[1],
+              amount: formatEther(deposit[2]),
+              receivingWalletAddress: deposit[3],
+              status: Number(deposit[4]),
+              txHash: deposit[5] || "",
             });
           }
         } catch (error) {
@@ -752,7 +754,7 @@ function BridgeVaultFrontend() {
                       <Text strong>1. Create Deposit</Text>
                       <br />
                       <Text type="secondary">
-                        Lock your tokens in the bridge vault
+                        Lock your Base tokens in the bridge vault
                       </Text>
                     </div>
                   </Col>
@@ -790,7 +792,7 @@ function BridgeVaultFrontend() {
                       <Text strong>3. Completion</Text>
                       <br />
                       <Text type="secondary">
-                        Tokens are minted on the destination chain
+                        Tokens are released on Solana within 24 hours
                       </Text>
                     </div>
                   </Col>

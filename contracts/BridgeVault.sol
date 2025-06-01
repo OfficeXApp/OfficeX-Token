@@ -21,6 +21,7 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     }
     
     struct Deposit {
+        uint256 depositId; 
         address depositor;
         uint256 amount;
         string receivingWalletAddress;
@@ -76,6 +77,7 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         
         // Create deposit record
         deposits[depositCounter] = Deposit({
+            depositId: depositCounter,
             depositor: msg.sender,
             amount: tokenAmount,
             receivingWalletAddress: receivingWalletAddress,
