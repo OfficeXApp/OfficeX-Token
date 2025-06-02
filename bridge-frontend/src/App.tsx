@@ -168,9 +168,48 @@ function BridgeVaultFrontend() {
   const [depositAmount, setDepositAmount] = useState("");
   const [receivingAddress, setReceivingAddress] = useState("");
 
+  // Admin conversion state
+  const [adminInputAmount, setAdminInputAmount] = useState("");
+  const [convertedAmount, setConvertedAmount] = useState("");
+
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
+
+  useEffect(() => {
+    if (adminInputAmount) {
+      try {
+        // Convert from 18 decimals to human-readable format, then to 9 decimals
+        const bigNumberValue = BigInt(adminInputAmount);
+
+        // First convert to human-readable decimal (divide by 10^18)
+        const divisorFor18Decimals = BigInt(10 ** 18);
+        const integerPart = bigNumberValue / divisorFor18Decimals;
+        const remainder18 = bigNumberValue % divisorFor18Decimals;
+
+        // Convert the remainder to a decimal string with 18 decimal places
+        const decimalPart18 = remainder18.toString().padStart(18, "0");
+
+        // Now convert from 18 decimal representation to 9 decimal representation
+        // Take only the first 9 decimal places and round appropriately
+        const decimalPart9 = decimalPart18.substring(0, 9);
+
+        // Remove trailing zeros for cleaner display
+        const trimmedDecimal = decimalPart9.replace(/0+$/, "");
+
+        // Combine the parts
+        if (trimmedDecimal === "") {
+          setConvertedAmount(integerPart.toString());
+        } else {
+          setConvertedAmount(`${integerPart.toString()}.${trimmedDecimal}`);
+        }
+      } catch (error) {
+        setConvertedAmount("Invalid input");
+      }
+    } else {
+      setConvertedAmount("");
+    }
+  }, [adminInputAmount]);
 
   // Initialize clients
   useEffect(() => {
@@ -845,9 +884,71 @@ function BridgeVaultFrontend() {
             </Card>
           </Col>
         </Row>
+
+        {/* Admin Conversion Section */}
+        <div style={{ marginTop: "32px" }}>
+          <details>
+            <summary
+              style={{
+                cursor: "pointer",
+                fontSize: "14px",
+                color: "#666",
+                marginBottom: "16px",
+              }}
+            >
+              Misc
+            </summary>
+            <Card
+              size="small"
+              title="Admin: Base to Solana Decimal Converter"
+              style={{ backgroundColor: "#fafafa" }}
+            >
+              <div style={{ marginBottom: "16px" }}>
+                <Text strong style={{ fontSize: "14px" }}>
+                  Base Amount (18 decimals):
+                </Text>
+                <Input
+                  placeholder="Enter BigNumber string (e.g., 1000000000000000000)"
+                  value={adminInputAmount}
+                  onChange={(e) => setAdminInputAmount(e.target.value)}
+                  style={{ marginTop: "8px" }}
+                />
+                <Text type="secondary" style={{ fontSize: "12px" }}>
+                  Input raw amount with 18 decimal places
+                </Text>
+              </div>
+
+              <div style={{ marginBottom: "16px" }}>
+                <Text strong style={{ fontSize: "14px" }}>
+                  Solana Amount (9 decimals):
+                </Text>
+                <Input
+                  value={convertedAmount}
+                  readOnly
+                  style={{ marginTop: "8px", backgroundColor: "#f5f5f5" }}
+                  placeholder="Converted amount will appear here"
+                />
+                <Text type="secondary" style={{ fontSize: "12px" }}>
+                  Equivalent amount with 9 decimal places
+                </Text>
+              </div>
+
+              <Button
+                size="small"
+                onClick={() => {
+                  setAdminInputAmount("");
+                  setConvertedAmount("");
+                }}
+                style={{ marginTop: "8px" }}
+              >
+                Clear
+              </Button>
+            </Card>
+          </details>
+        </div>
       </div>
     ),
-    [tokenInfo, totalDeposited, deposits]
+    [tokenInfo, totalDeposited, deposits, adminInputAmount, convertedAmount]
   );
 
   // Bridge Tab Content
@@ -1058,7 +1159,7 @@ function BridgeVaultFrontend() {
         children: DepositsContent,
       },
     ],
-    [DashboardContent, BridgeContent, DepositsContent]
+    [DashboardContent, BridgeContent, DepositsContent, convertedAmount]
   );
 
   if (!account) {
