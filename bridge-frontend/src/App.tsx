@@ -61,10 +61,14 @@ declare global {
 const BRIDGE_ABI = parseAbi([
   "function depositToBridge(uint256 tokenAmount, string calldata receivingWalletAddress) external",
   "function cancelBridge(uint256 depositId) external",
-  "function deposits(uint256) external view returns (uint256 depositId, address depositor, uint256 amount, string receivingWalletAddress, uint8 status, string txFinal)",
+
+  // Use simple format - this should work
+  "function deposits(uint256) external view returns (uint256, address, uint256, string, uint8, string)",
+
   "function depositCounter() external view returns (uint256)",
   "function totalNetDeposited() external view returns (uint256)",
   "function token() external view returns (address)",
+
   "event DepositMade(address indexed depositor, uint256 indexed depositId, uint256 amount, string receivingWalletAddress, uint8 status)",
   "event Cancel(address indexed depositor, uint256 indexed depositId, uint256 amount)",
   "event Lock(uint256 indexed depositId, uint256 amount, bool isLocked)",
@@ -82,9 +86,12 @@ const ERC20_ABI = parseAbi([
 
 // Contract addresses (you'll need to replace these with actual deployed addresses)
 const BRIDGE_CONTRACT_ADDRESS =
-  "0x41fc57bB7ec89BcEd6C0a4E2B313b6Ccd83d8AA3" as const;
-const TOKEN_CONTRACT_ADDRESS =
+  "0xB663A4Eb5D9D2dbfef59c5e101ec87Ec2BD3aEBf" as const;
+const BASE_CONTRACT_ADDRESS =
   "0x4E9E4d2c145d5Df6D8eBCfBa947a6406F46d5BE0" as const;
+
+const SOLANA_CONTRACT_ADDRESS =
+  "mntp4nmZjsdRZzJ8h4JXPyq4xi5rfoc3pcJgfQhyxmy" as const;
 
 // Types
 interface DepositData {
@@ -131,14 +138,13 @@ const DepositStatus: Record<number, DepositStatusConfig> = {
     color: "warning",
     icon: <LockOutlined />,
     tooltip:
-      "Deposit is locked and processing. You cannot cancel or modify this deposit, just wait for it to complete and your tokens to be sent to you on Solana.",
+      "Deposit is locked and processing. You cannot cancel or modify this deposit, just wait for it to complete and your tokens to be sent to you on Solana. This may take up to 48 hours.",
   },
   3: {
     label: "Completed",
     color: "success",
     icon: <CheckCircleOutlined />,
-    tooltip:
-      "Deposit completed. Your tokens have been sent to you on Solana. Check your receiving wallet.",
+    tooltip: `Deposit completed. Your tokens have been sent to you on Solana. Check your receiving wallet. The Solana CA is ${SOLANA_CONTRACT_ADDRESS}`,
   },
 };
 
@@ -220,7 +226,7 @@ function BridgeVaultFrontend() {
     try {
       setLoading(true);
       const tokenContract = getContract({
-        address: TOKEN_CONTRACT_ADDRESS,
+        address: BASE_CONTRACT_ADDRESS,
         abi: ERC20_ABI,
         client: publicClient,
       });
@@ -278,22 +284,36 @@ function BridgeVaultFrontend() {
       const userDeposits: DepositData[] = [];
 
       // Load all deposits and filter for current user
-      for (let i = 0; i < depositCounter; i++) {
+      for (let i = 0; i < Number(depositCounter); i++) {
         try {
-          const deposit = await bridgeContract.read.deposits([BigInt(i)]);
-          if (deposit[1].toLowerCase() === account.toLowerCase()) {
+          const [
+            depositId,
+            depositor,
+            amount,
+            receivingWalletAddress,
+            status,
+            txFinal,
+          ] = await publicClient.readContract({
+            address: BRIDGE_CONTRACT_ADDRESS,
+            abi: BRIDGE_ABI,
+            functionName: "deposits",
+            args: [BigInt(i)],
+          });
+
+          if (depositor.toLowerCase() === account.toLowerCase()) {
             userDeposits.push({
               id: i,
-              depositId: Number(deposit[0]),
-              depositor: deposit[1],
-              amount: formatEther(deposit[2]),
-              receivingWalletAddress: deposit[3],
-              status: Number(deposit[4]),
-              txHash: deposit[5] || "",
+              depositId: Number(depositId),
+              depositor,
+              amount: formatEther(amount),
+              receivingWalletAddress,
+              status: Number(status),
+              txHash: txFinal || "",
             });
           }
         } catch (error) {
           console.error(`Error loading deposit ${i}:`, error);
+          continue;
         }
       }
 
@@ -332,7 +352,7 @@ function BridgeVaultFrontend() {
 
       // First approve the bridge contract to spend tokens
       const tokenContract = getContract({
-        address: TOKEN_CONTRACT_ADDRESS,
+        address: BASE_CONTRACT_ADDRESS,
         abi: ERC20_ABI,
         client: walletClient,
       });
@@ -643,10 +663,10 @@ function BridgeVaultFrontend() {
                     >
                       Contract:{" "}
                       <a
-                        href={`https://basescan.org/address/${TOKEN_CONTRACT_ADDRESS}`}
+                        href={`https://basescan.org/address/${BASE_CONTRACT_ADDRESS}`}
                         target="_blank"
                       >
-                        {TOKEN_CONTRACT_ADDRESS}
+                        {BASE_CONTRACT_ADDRESS}
                       </a>
                     </Text>
                   </Col>
@@ -655,6 +675,19 @@ function BridgeVaultFrontend() {
                     <Text style={{ color: "#52c41a", fontSize: "16px" }}>
                       {parseFloat(tokenInfo.balance).toFixed(4)}{" "}
                       {tokenInfo.symbol}
+                    </Text>
+                  </Col>
+                </Row>
+                <Row>
+                  <Col span={24}>
+                    <Text strong>Bridged Solana CA: </Text>
+                    <Text style={{ color: "blue", fontSize: "16px" }}>
+                      <a
+                        href={`https://solscan.io/address/${SOLANA_CONTRACT_ADDRESS}`}
+                        target="_blank"
+                      >
+                        {SOLANA_CONTRACT_ADDRESS}
+                      </a>
                     </Text>
                   </Col>
                 </Row>
