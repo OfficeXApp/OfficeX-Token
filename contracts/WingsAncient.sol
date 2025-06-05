@@ -5,9 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol"; 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; 
 
-contract Wings is ERC20, Ownable, ReentrancyGuard {
-
-    address public adminAddress;
+contract WingsAncient is ERC20, Ownable, ReentrancyGuard {
     
     mapping(address => bool) public allowlist;
     
@@ -19,16 +17,14 @@ contract Wings is ERC20, Ownable, ReentrancyGuard {
     event TokensBurned(address indexed from, uint256 burnAmount);
 
     constructor(
-        address _adminAddress
-    ) ERC20("Wings", "WINGS") Ownable(_adminAddress) {
-        require(_adminAddress != address(0), "Invalid address");
+        address adminAddress
+    ) ERC20("WingsAncient", "WINGS_ANCIENT") Ownable(adminAddress) {
+        require(adminAddress != address(0), "Invalid address");
         
         allowlist[msg.sender] = true;
-        allowlist[_adminAddress] = true;
-
-        adminAddress = _adminAddress;
+        allowlist[adminAddress] = true;
         
-        _mint(_adminAddress, 210000000 * 10**18); // 210 million tokens
+        _mint(adminAddress, 210000000 * 10**18); // 210 million tokens
     }
 
 
@@ -60,7 +56,7 @@ contract Wings is ERC20, Ownable, ReentrancyGuard {
             uint256 burnAmount = (amount * BURN_RATE_BPS) / BASIS_POINTS;
             uint256 transferAmount = amount - burnAmount;
             
-            super._update(from, adminAddress, burnAmount);
+            super._update(from, address(0), burnAmount);
             super._update(from, to, transferAmount);
             
             emit TokensBurned(from, burnAmount);

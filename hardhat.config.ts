@@ -16,6 +16,15 @@ const BASE_RPC_URL = process.env.BASE_RPC_URL || "";
 
 const config: HardhatUserConfig = {
   solidity: "0.8.24",
+  // solidity: {
+  //   version: "0.8.24",
+  //   settings: {
+  //     optimizer: {
+  //       enabled: true,
+  //       runs: 200, // Try different values: 1, 200, 1000
+  //     },
+  //   },
+  // },
   etherscan: {
     apiKey: {
       sepolia: ETHERSCAN_API_KEY,
