@@ -109,6 +109,7 @@ export const BRIDGE_VAULT_ABI = [
 export interface BridgeFormData {
   amount: string;
   recipientAddress: string;
+  txDepositProof?: string;
 }
 
 export interface TokenInfo {
