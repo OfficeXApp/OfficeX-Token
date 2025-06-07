@@ -1,15 +1,10 @@
 import {
-  InfoCircleOutlined,
   SwapOutlined,
   ArrowRightOutlined,
   ArrowLeftOutlined,
-  SyncOutlined,
-  MailOutlined,
   DollarOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
-  WalletOutlined,
-  ExportOutlined,
   FileTextOutlined,
 } from "@ant-design/icons";
 import {
@@ -30,11 +25,12 @@ import {
   BRIDGE_FEE,
   BRIDGE_VAULT_ABI,
   ERC20_ABI,
+  SOLANA_BRIDGE_WALLET,
   type BridgeFormData,
   type TokenInfo,
   type WalletState,
 } from "../constants";
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   createPublicClient,
   createWalletClient,
@@ -44,7 +40,7 @@ import {
 } from "viem";
 import { base } from "viem/chains";
 
-const { Title, Paragraph, Text } = Typography;
+const { Title, Text } = Typography;
 const { TabPane } = Tabs;
 
 const BridgeToSolanaTab = ({
@@ -80,15 +76,19 @@ const BridgeToSolanaTab = ({
       txDepositProof: "", // NEW: Transaction proof from Solana
     });
 
-  // Viem clients
-  const publicClient = createPublicClient({
-    chain: base,
-    transport: http(
-      "https://base-mainnet.g.alchemy.com/v2/EAF1m-3-59-iXzmNbA99cvWq9pFovfxu"
-    ),
-  });
+  // Memoize viem clients to prevent recreation on every render
+  const publicClient = useMemo(
+    () =>
+      createPublicClient({
+        chain: base,
+        transport: http(
+          "https://base-mainnet.g.alchemy.com/v2/EAF1m-3-59-iXzmNbA99cvWq9pFovfxu"
+        ),
+      }),
+    []
+  );
 
-  const getWalletClient = () => {
+  const getWalletClient = useCallback(() => {
     if (typeof window !== "undefined" && window.ethereum) {
       return createWalletClient({
         chain: base,
@@ -96,46 +96,49 @@ const BridgeToSolanaTab = ({
       });
     }
     return null;
-  };
+  }, []);
 
   // Approve token spending
-  const approveToken = async (tokenAddress: string, amount: string) => {
-    const walletClient = getWalletClient();
-    if (!walletClient || !wallet.isConnected) return false;
+  const approveToken = useCallback(
+    async (tokenAddress: string, amount: string) => {
+      const walletClient = getWalletClient();
+      if (!walletClient || !wallet.isConnected) return false;
 
-    try {
-      setLoading(true);
+      try {
+        setLoading(true);
 
-      const hash = await walletClient.writeContract({
-        address: tokenAddress as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [BRIDGE_BASE_CONTRACT_ADDRESS, parseEther(amount)],
-        account: wallet.address as `0x${string}`,
-      });
+        const hash = await walletClient.writeContract({
+          address: tokenAddress as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [BRIDGE_BASE_CONTRACT_ADDRESS, parseEther(amount)],
+          account: wallet.address as `0x${string}`,
+        });
 
-      await publicClient.waitForTransactionReceipt({ hash });
+        await publicClient.waitForTransactionReceipt({ hash });
 
-      notification.success({
-        message: "Approval Successful",
-        description: "Token spending approved",
-      });
+        notification.success({
+          message: "Approval Successful",
+          description: "Token spending approved",
+        });
 
-      return true;
-    } catch (error) {
-      console.error("Approval failed:", error);
-      notification.error({
-        message: "Approval Failed",
-        description: "Failed to approve token spending",
-      });
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
+        return true;
+      } catch (error) {
+        console.error("Approval failed:", error);
+        notification.error({
+          message: "Approval Failed",
+          description: "Failed to approve token spending",
+        });
+        return false;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getWalletClient, wallet.isConnected, wallet.address, publicClient]
+  );
 
   // Bridge to Solana
-  const handleBridgeToSolana = async () => {
+  const handleBridgeToSolana = useCallback(async () => {
     const walletClient = getWalletClient();
     if (!walletClient || !wallet.isConnected) return;
 
@@ -190,10 +193,18 @@ const BridgeToSolanaTab = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    getWalletClient,
+    wallet.isConnected,
+    wallet.address,
+    bridgeToSolanaForm,
+    approveToken,
+    publicClient,
+    fetchTokenInfo,
+  ]);
 
   // NEW: Bridge from Solana
-  const handleBridgeFromSolana = async () => {
+  const handleBridgeFromSolana = useCallback(async () => {
     const walletClient = getWalletClient();
     if (!walletClient || !wallet.isConnected) return;
 
@@ -251,187 +262,226 @@ const BridgeToSolanaTab = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    getWalletClient,
+    wallet.isConnected,
+    wallet.address,
+    bridgeFromSolanaForm,
+    publicClient,
+    fetchTokenInfo,
+  ]);
 
-  const BridgeOutTab = () => (
-    <div>
-      <Title level={3}>
-        <ArrowRightOutlined style={{ color: "#52c41a", marginRight: 8 }} />
-        Bridge to Solana
-      </Title>
-
-      {!wallet.isConnected ? (
-        <Alert
-          message="Wallet Not Connected"
-          description="Please connect your MetaMask wallet to continue"
-          type="warning"
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
-      ) : (
-        <Alert
-          message="Requirements"
-          description={`You must have wrapped ${
-            tokenInfo.base?.symbol || "Base"
-          } tokens to use this bridge. Available: ${
-            tokenInfo.base ? parseFloat(tokenInfo.base.balance).toFixed(4) : "0"
-          } tokens`}
-          type="info"
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
-      )}
-
+  // Memoize the tab components to prevent unnecessary re-renders
+  const BridgeOutTab = useMemo(
+    () => (
       <div>
-        <div style={{ marginBottom: 16 }}>
-          <Text strong>Amount (Wrapped Base Tokens)</Text>
-          <Input
-            placeholder="0.0"
-            suffix={tokenInfo.base?.symbol || "WBASE"}
-            size="large"
-            style={{ marginTop: 8 }}
-            value={bridgeToSolanaForm.amount}
-            onChange={(e) =>
-              setBridgeToSolanaForm((prev) => ({
-                ...prev,
-                amount: e.target.value,
-              }))
-            }
-            disabled={!wallet.isConnected}
-          />
-        </div>
+        <Title level={3}>
+          <ArrowRightOutlined style={{ color: "#52c41a", marginRight: 8 }} />
+          Solana Bridge
+        </Title>
 
-        <div style={{ marginBottom: 16 }}>
-          <Text strong>Solana Recipient Address</Text>
-          <Input
-            placeholder="Enter your Solana wallet address"
-            size="large"
-            style={{ marginTop: 8 }}
-            value={bridgeToSolanaForm.recipientAddress}
-            onChange={(e) =>
-              setBridgeToSolanaForm((prev) => ({
-                ...prev,
-                recipientAddress: e.target.value,
-              }))
-            }
-            disabled={!wallet.isConnected}
+        {!wallet.isConnected ? (
+          <Alert
+            message="Wallet Not Connected"
+            description="Please connect your MetaMask wallet to continue"
+            type="warning"
+            showIcon
+            style={{ marginBottom: 24 }}
           />
-        </div>
+        ) : (
+          <Alert
+            message="Requirements"
+            description={`You must have wrapped ${
+              tokenInfo.base?.symbol || "Base"
+            } tokens to use this bridge. Available: ${
+              tokenInfo.base ? tokenInfo.base.balance : "0"
+            } tokens`}
+            type="info"
+            showIcon
+            style={{ marginBottom: 24 }}
+          />
+        )}
 
-        <Button
-          type="primary"
-          onClick={handleBridgeToSolana}
-          size="large"
-          block
-          icon={<ArrowRightOutlined />}
-          disabled={!wallet.isConnected}
-          loading={loading}
-        >
-          Bridge to Solana
-        </Button>
+        <div>
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>Amount (Wrapped Base Tokens)</Text>
+            <Input
+              placeholder="0.0"
+              suffix={
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Button
+                    type="link"
+                    size="small"
+                    style={{ padding: 0, height: "auto", fontSize: 12 }}
+                    onClick={() =>
+                      setBridgeToSolanaForm((prev) => ({
+                        ...prev,
+                        amount:
+                          tokenInfo.base?.balance?.replace(/,/g, "") || "0",
+                      }))
+                    }
+                    disabled={!wallet.isConnected || !tokenInfo.base?.balance}
+                  >
+                    MAX
+                  </Button>
+                  <span>{tokenInfo.base?.symbol || "WBASE"}</span>
+                </div>
+              }
+              size="large"
+              style={{ marginTop: 8 }}
+              value={bridgeToSolanaForm.amount}
+              onChange={(e) =>
+                setBridgeToSolanaForm((prev) => ({
+                  ...prev,
+                  amount: e.target.value,
+                }))
+              }
+              disabled={!wallet.isConnected}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>Solana Recipient Address</Text>
+            <Input
+              placeholder="Enter your Solana wallet address"
+              size="large"
+              style={{ marginTop: 8 }}
+              value={bridgeToSolanaForm.recipientAddress}
+              onChange={(e) =>
+                setBridgeToSolanaForm((prev) => ({
+                  ...prev,
+                  recipientAddress: e.target.value,
+                }))
+              }
+              disabled={!wallet.isConnected}
+            />
+          </div>
+
+          <Button
+            type="primary"
+            onClick={handleBridgeToSolana}
+            size="large"
+            block
+            icon={<ArrowRightOutlined />}
+            disabled={!wallet.isConnected}
+            loading={loading}
+          >
+            Bridge to Solana
+          </Button>
+        </div>
       </div>
-    </div>
+    ),
+    [
+      wallet.isConnected,
+      tokenInfo.base,
+      bridgeToSolanaForm,
+      handleBridgeToSolana,
+      loading,
+    ]
   );
 
-  const BridgeInTab = () => (
-    <div>
-      <Title level={3}>
-        <ArrowLeftOutlined style={{ color: "#1890ff", marginRight: 8 }} />
-        Bridge from Solana
-      </Title>
-
-      {!wallet.isConnected ? (
-        <Alert
-          message="Wallet Not Connected"
-          description="Please connect your MetaMask wallet to continue"
-          type="warning"
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
-      ) : (
-        <Alert
-          message="Instructions"
-          description="First send your tokens to the admin address on Solana, then submit this form with the transaction proof. Include the Base recipient address as a memo in your Solana transaction."
-          type="info"
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
-      )}
-
+  const BridgeInTab = useMemo(
+    () => (
       <div>
-        <div style={{ marginBottom: 16 }}>
-          <Text strong>Amount (Tokens sent on Solana)</Text>
-          <Input
-            placeholder="0.0"
-            suffix="Tokens"
-            size="large"
-            style={{ marginTop: 8 }}
-            value={bridgeFromSolanaForm.amount}
-            onChange={(e) =>
-              setBridgeFromSolanaForm((prev) => ({
-                ...prev,
-                amount: e.target.value,
-              }))
-            }
-            disabled={!wallet.isConnected}
-          />
-        </div>
+        <Title level={3}>
+          <ArrowLeftOutlined style={{ color: "#1890ff", marginRight: 8 }} />
+          Bridge from Solana
+        </Title>
 
-        <div style={{ marginBottom: 16 }}>
-          <Text strong>Base Recipient Address</Text>
-          <Input
-            placeholder="Enter the Base address to receive tokens"
-            size="large"
-            style={{ marginTop: 8 }}
-            value={bridgeFromSolanaForm.recipientAddress}
-            onChange={(e) =>
-              setBridgeFromSolanaForm((prev) => ({
-                ...prev,
-                recipientAddress: e.target.value,
-              }))
-            }
-            disabled={!wallet.isConnected}
+        {!wallet.isConnected ? (
+          <Alert
+            message="Wallet Not Connected"
+            description="Please connect your MetaMask wallet to continue"
+            type="warning"
+            showIcon
+            style={{ marginBottom: 24 }}
           />
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <Text strong>
-            <FileTextOutlined style={{ marginRight: 4 }} />
-            Solana Transaction Proof
-          </Text>
-          <Input.TextArea
-            placeholder="Enter the Solana transaction signature/hash as proof of your deposit"
-            size="large"
-            style={{ marginTop: 8 }}
-            rows={3}
-            value={bridgeFromSolanaForm.txDepositProof}
-            onChange={(e) =>
-              setBridgeFromSolanaForm((prev) => ({
-                ...prev,
-                txDepositProof: e.target.value,
-              }))
-            }
-            disabled={!wallet.isConnected}
+        ) : (
+          <Alert
+            message="Instructions"
+            description={`First send your tokens to the Solana Bridge Wallet ${SOLANA_BRIDGE_WALLET} with the BaseL2 recipient address as a memo in your Solana transaction. Then submit this form with the transaction proof.`}
+            type="info"
+            showIcon
+            style={{ marginBottom: 24 }}
           />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            This should be the transaction signature from your Solana wallet
-            when you sent tokens to the admin address
-          </Text>
-        </div>
+        )}
 
-        <Button
-          type="primary"
-          onClick={handleBridgeFromSolana}
-          size="large"
-          block
-          icon={<ArrowLeftOutlined />}
-          disabled={!wallet.isConnected}
-          loading={loading}
-        >
-          Submit Bridge Request
-        </Button>
+        <div>
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>Amount (Tokens sent on Solana)</Text>
+            <Input
+              placeholder="0.0"
+              suffix="Tokens"
+              size="large"
+              style={{ marginTop: 8 }}
+              value={bridgeFromSolanaForm.amount}
+              onChange={(e) =>
+                setBridgeFromSolanaForm((prev) => ({
+                  ...prev,
+                  amount: e.target.value,
+                }))
+              }
+              disabled={!wallet.isConnected}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>Base Recipient Address</Text>
+            <Input
+              placeholder="Enter the Base address to receive tokens"
+              size="large"
+              style={{ marginTop: 8 }}
+              value={bridgeFromSolanaForm.recipientAddress}
+              onChange={(e) =>
+                setBridgeFromSolanaForm((prev) => ({
+                  ...prev,
+                  recipientAddress: e.target.value,
+                }))
+              }
+              disabled={!wallet.isConnected}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>
+              <FileTextOutlined style={{ marginRight: 4 }} />
+              Solana Transaction Proof
+            </Text>
+            <Input.TextArea
+              placeholder="Enter the Solana transaction signature/hash as proof of your deposit"
+              size="large"
+              style={{ marginTop: 8 }}
+              rows={3}
+              value={bridgeFromSolanaForm.txDepositProof}
+              onChange={(e) =>
+                setBridgeFromSolanaForm((prev) => ({
+                  ...prev,
+                  txDepositProof: e.target.value,
+                }))
+              }
+              disabled={!wallet.isConnected}
+            />
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              This should be the transaction signature from your Solana wallet
+              when you sent tokens to the admin address
+            </Text>
+          </div>
+
+          <Button
+            type="primary"
+            onClick={handleBridgeFromSolana}
+            size="large"
+            block
+            icon={<ArrowLeftOutlined />}
+            disabled={!wallet.isConnected}
+            loading={loading}
+          >
+            Submit Bridge Request
+          </Button>
+        </div>
       </div>
-    </div>
+    ),
+    [wallet.isConnected, bridgeFromSolanaForm, handleBridgeFromSolana, loading]
   );
 
   return (
@@ -492,7 +542,7 @@ const BridgeToSolanaTab = ({
             }
             key="bridge-out"
           >
-            <BridgeOutTab />
+            {BridgeOutTab}
           </TabPane>
 
           <TabPane
@@ -504,7 +554,7 @@ const BridgeToSolanaTab = ({
             }
             key="bridge-in"
           >
-            <BridgeInTab />
+            {BridgeInTab}
           </TabPane>
         </Tabs>
       </Card>

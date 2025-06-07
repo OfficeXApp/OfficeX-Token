@@ -1,9 +1,11 @@
 // Contract addresses and constants
-export const ANCIENT_BASE_TOKEN = "0x946AaBdAdA2A2eF0535715a062685Ae886B08117";
-export const BASE_TOKEN = "0x2c75445576BE17fD2dE0Fea019dB795Ea2b3Fa2E";
+export const ANCIENT_BASE_TOKEN = "0xaC441DB73794D8716496199D8b6af44e939b810F";
+export const BASE_TOKEN = "0xB63E5600Bb251D7AeDe2CcA2c0C18c56c7FcD816";
 export const BRIDGE_BASE_CONTRACT_ADDRESS =
-  "0x79e92547639Ec8D8900a8d752D011D3Da11c41Df";
+  "0x6cd40E13Fa9F23d8690ea62236fe18e8d56C518e";
 export const SOLANA_TOKEN = "mntp4nmZjsdRZzJ8h4JXPyq4xi5rfoc3pcJgfQhyxmy";
+export const SOLANA_BRIDGE_WALLET =
+  "56Hkvv6vKCUibhFy1y4wT8eq7cgqD6mXqhzenPpnV2UL";
 
 export const BRIDGE_FEE = "0.002"; // ETH
 
@@ -73,7 +75,6 @@ export const BRIDGE_VAULT_ABI = [
   },
   {
     inputs: [
-      { name: "tokenAmount", type: "uint256" },
       { name: "receivingWalletAddress", type: "address" },
       { name: "chain", type: "string" },
       { name: "txDepositProof", type: "string" },
@@ -104,6 +105,71 @@ export const BRIDGE_VAULT_ABI = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    inputs: [
+      { name: "holder", type: "address" },
+      { name: "index", type: "uint256" },
+    ],
+    name: "holderBridgeInList",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "holder", type: "address" },
+      { name: "index", type: "uint256" },
+    ],
+    name: "holderBridgeOutList",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  // Deposit structs
+  {
+    inputs: [{ name: "depositOutId", type: "uint256" }],
+    name: "depositsOut",
+    outputs: [
+      { name: "depositOutId", type: "uint256" },
+      { name: "depositor", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "receivingWalletAddress", type: "string" },
+      { name: "chain", type: "string" },
+      { name: "status", type: "uint8" },
+      { name: "txRelease", type: "string" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "depositInId", type: "uint256" }],
+    name: "depositsIn",
+    outputs: [
+      { name: "depositInId", type: "uint256" },
+      { name: "depositor", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "receivingWalletAddress", type: "address" },
+      { name: "chain", type: "string" },
+      { name: "status", type: "uint8" },
+      { name: "txDepositProof", type: "string" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "depositOutCounter",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "depositInCounter",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ];
 
 export interface BridgeFormData {
@@ -124,3 +190,12 @@ export interface WalletState {
   address: string;
   balance: string;
 }
+
+export const formatWithCommas = (value: string) => {
+  //   return value;
+  const num = parseFloat(value);
+  return num.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};

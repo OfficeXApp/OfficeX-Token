@@ -1,46 +1,15 @@
 import React, { useState, useEffect } from "react";
-import {
-  Tabs,
-  Card,
-  Typography,
-  Alert,
-  Space,
-  Button,
-  Input,
-  Divider,
-  Tag,
-  Steps,
-  List,
-  Row,
-  Col,
-  notification,
-  Modal,
-  Spin,
-} from "antd";
+import { Tabs, Card, Typography, Space, notification, Spin } from "antd";
 import {
   InfoCircleOutlined,
-  SwapOutlined,
   ArrowRightOutlined,
-  ArrowLeftOutlined,
   SyncOutlined,
   MailOutlined,
-  DollarOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  WalletOutlined,
-  ExportOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 
 // Viem imports
-import {
-  createPublicClient,
-  createWalletClient,
-  custom,
-  http,
-  formatEther,
-  parseEther,
-  getContract,
-} from "viem";
+import { createPublicClient, http, formatEther, getContract } from "viem";
 import { base } from "viem/chains";
 import BridgeToSolanaTab from "./components/BridgeToSolana";
 import BridgeToBaseTab from "./components/BridgeToBase";
@@ -50,13 +19,13 @@ import {
   ANCIENT_BASE_TOKEN,
   BASE_TOKEN,
   BRIDGE_BASE_CONTRACT_ADDRESS,
-  BRIDGE_FEE,
   BRIDGE_VAULT_ABI,
   ERC20_ABI,
-  type BridgeFormData,
+  formatWithCommas,
   type TokenInfo,
   type WalletState,
 } from "./constants";
+import BridgeLogsTab from "./components/LogsTab";
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -140,17 +109,17 @@ const BridgeApp: React.FC = () => {
           name: baseName as string,
           symbol: baseSymbol as string,
           decimals: baseDecimals as number,
-          balance: formatEther(baseBalance as bigint),
+          balance: formatWithCommas(formatEther(baseBalance as bigint)),
         },
         ancient: {
           name: ancientName as string,
           symbol: ancientSymbol as string,
           decimals: ancientDecimals as number,
-          balance: formatEther(ancientBalance as bigint),
+          balance: formatWithCommas(formatEther(ancientBalance as bigint)),
         },
       });
 
-      setBridgeInventory(formatEther(inventory as bigint));
+      setBridgeInventory(formatWithCommas(formatEther(inventory as bigint)));
     } catch (error) {
       console.error("Failed to fetch token info:", error);
       notification.error({
@@ -192,7 +161,7 @@ const BridgeApp: React.FC = () => {
       label: (
         <Space>
           <ArrowRightOutlined />
-          Bridge to Solana
+          Solana Bridge
         </Space>
       ),
       children: (
@@ -209,19 +178,19 @@ const BridgeApp: React.FC = () => {
       key: "3",
       label: (
         <Space>
-          <ArrowLeftOutlined />
-          Bridge to Base
+          <ArrowRightOutlined />
+          ICP Bridge
         </Space>
       ),
       children: (
         <BridgeToBaseTab
           tokenInfo={tokenInfo}
-          fetchTokenInfo={fetchTokenInfo}
           wallet={wallet}
           setWallet={setWallet}
           bridgeInventory={bridgeInventory}
         />
       ),
+      disabled: true,
     },
     {
       key: "4",
@@ -241,6 +210,16 @@ const BridgeApp: React.FC = () => {
           bridgeInventory={bridgeInventory}
         />
       ),
+    },
+    {
+      key: "5", // NEW: Bridge Logs tab
+      label: (
+        <Space>
+          <FileTextOutlined />
+          Bridge Logs
+        </Space>
+      ),
+      children: <BridgeLogsTab wallet={wallet} />,
     },
   ];
 

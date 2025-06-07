@@ -12,17 +12,10 @@ import {
 } from "antd";
 import WalletSection from "./WalletSection";
 import {
-  InfoCircleOutlined,
-  SwapOutlined,
-  ArrowRightOutlined,
   ArrowLeftOutlined,
-  SyncOutlined,
-  MailOutlined,
   DollarOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
-  WalletOutlined,
-  ExportOutlined,
 } from "@ant-design/icons";
 import {
   BRIDGE_BASE_CONTRACT_ADDRESS,
@@ -46,13 +39,13 @@ const { Title, Paragraph, Text } = Typography;
 
 const BridgeToBaseTab = ({
   wallet,
-  fetchTokenInfo,
+
   tokenInfo,
   setWallet,
   bridgeInventory,
 }: {
   wallet: WalletState;
-  fetchTokenInfo: () => void;
+
   tokenInfo: {
     base: TokenInfo | null;
     ancient: TokenInfo | null;

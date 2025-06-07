@@ -1,23 +1,16 @@
 import {
   InfoCircleOutlined,
-  SwapOutlined,
   ArrowRightOutlined,
   ArrowLeftOutlined,
   SyncOutlined,
   MailOutlined,
-  DollarOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  WalletOutlined,
-  ExportOutlined,
 } from "@ant-design/icons";
 import { Alert, Button, Card, Divider, Steps, Tag, Typography } from "antd";
 import WalletSection from "./WalletSection";
 import ContractLinks from "./ContractLinks";
 import { BRIDGE_FEE, type TokenInfo, type WalletState } from "../constants";
-import { useState } from "react";
 
-const { Title, Paragraph, Text } = Typography;
+const { Title, Paragraph } = Typography;
 
 const InstructionsTab = ({
   wallet,
@@ -35,7 +28,6 @@ const InstructionsTab = ({
   };
   bridgeInventory: string;
 }) => {
-  const [loading, setLoading] = useState(false);
   return (
     <div style={{ maxWidth: 800, margin: "0 auto" }}>
       <WalletSection

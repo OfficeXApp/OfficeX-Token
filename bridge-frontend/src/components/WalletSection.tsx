@@ -1,16 +1,4 @@
-import {
-  InfoCircleOutlined,
-  SwapOutlined,
-  ArrowRightOutlined,
-  ArrowLeftOutlined,
-  SyncOutlined,
-  MailOutlined,
-  DollarOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  WalletOutlined,
-  ExportOutlined,
-} from "@ant-design/icons";
+import { WalletOutlined } from "@ant-design/icons";
 
 import { Button, Card, Col, notification, Row, Typography } from "antd";
 import { useState } from "react";
@@ -24,7 +12,7 @@ import {
 import { base } from "viem/chains";
 import type { TokenInfo, WalletState } from "../constants";
 
-const { Title, Paragraph, Text } = Typography;
+const { Title, Text } = Typography;
 
 const WalletSection = ({
   setWallet,
@@ -167,21 +155,21 @@ const WalletSection = ({
               <Card size="small" style={{ textAlign: "center" }}>
                 <Text strong>{tokenInfo.base.symbol}</Text>
                 <br />
-                <Text>{parseFloat(tokenInfo.base.balance).toFixed(4)}</Text>
+                <Text>{tokenInfo.base.balance}</Text>
               </Card>
             </Col>
             <Col span={8}>
               <Card size="small" style={{ textAlign: "center" }}>
                 <Text strong>{tokenInfo.ancient.symbol}</Text>
                 <br />
-                <Text>{parseFloat(tokenInfo.ancient.balance).toFixed(4)}</Text>
+                <Text>{tokenInfo.ancient.balance}</Text>
               </Card>
             </Col>
             <Col span={8}>
               <Card size="small" style={{ textAlign: "center" }}>
                 <Text strong>Bridge Inventory</Text>
                 <br />
-                <Text>{parseFloat(bridgeInventory).toFixed(4)}</Text>
+                <Text>{bridgeInventory}</Text>
               </Card>
             </Col>
           </Row>

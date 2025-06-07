@@ -1,16 +1,4 @@
-import {
-  InfoCircleOutlined,
-  SwapOutlined,
-  ArrowRightOutlined,
-  ArrowLeftOutlined,
-  SyncOutlined,
-  MailOutlined,
-  DollarOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  WalletOutlined,
-  ExportOutlined,
-} from "@ant-design/icons";
+import { ArrowRightOutlined, SyncOutlined } from "@ant-design/icons";
 
 import {
   Alert,
@@ -66,7 +54,6 @@ const MigrateAncientTab = ({
   bridgeInventory: string;
 }) => {
   const [loading, setLoading] = useState(false);
-  const [ancientInventory, setAncientInventory] = useState("0");
 
   const [migrateForm, setMigrateForm] = useState<MigrateFormData>({
     amount: "",

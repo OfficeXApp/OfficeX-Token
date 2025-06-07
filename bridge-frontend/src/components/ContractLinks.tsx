@@ -1,16 +1,4 @@
-import {
-  InfoCircleOutlined,
-  SwapOutlined,
-  ArrowRightOutlined,
-  ArrowLeftOutlined,
-  SyncOutlined,
-  MailOutlined,
-  DollarOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  WalletOutlined,
-  ExportOutlined,
-} from "@ant-design/icons";
+import { ExportOutlined } from "@ant-design/icons";
 import { Card, Space, Typography } from "antd";
 import {
   ANCIENT_BASE_TOKEN,
@@ -19,7 +7,7 @@ import {
   SOLANA_TOKEN,
 } from "../constants";
 
-const { Title, Paragraph, Text } = Typography;
+const { Title, Text } = Typography;
 
 const ContractLinks = () => {
   return (

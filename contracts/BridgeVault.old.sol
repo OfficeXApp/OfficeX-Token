@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -20,7 +19,6 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * 4. There should always be BaseL2 token inventory for bidirectional bridging, while tokens on other chains are not in a vault, just manually processed by admin
  */
 contract BridgeVault is Ownable, ReentrancyGuard {
-    using SafeERC20 for IERC20;
 
     string public constant BRIDGE_NAME = "WRAPPED_BASE_BRIDGE_OFFICEX";
     
@@ -31,15 +29,12 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     address public feeTreasury;
     
     uint256 public constant BRIDGE_FEE = 0.002 ether;
-    uint256 public constant MAX_BRIDGE_AMOUNT = 1000000 * 10**18; // 1M tokens max per transaction
-    uint256 public constant MIN_BRIDGE_AMOUNT = 1 * 10**15; // 0.001 tokens minimum
     
     uint256 public depositOutCounter;
     uint256 public depositInCounter;
     
-    // === HISTORICAL ACCOUNTING (Immutable Totals) ===
-    uint256 public totalBridgeDeposited;        // All-time bridge deposits (NEVER decreases)
-    uint256 public totalBridgeCanceled;         // All-time bridge cancellations
+    // === TOTAL ACCOUNTING (Historical) ===
+    uint256 public totalBridgeDeposited;        // All-time bridge deposits
     uint256 public totalBridgedOut;             // All-time tokens sent to other chains
     uint256 public totalBridgedIn;              // All-time tokens received from other chains
     uint256 public totalAncientWrapped;         // All-time ancient tokens wrapped to new tokens
@@ -147,7 +142,6 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     // Enhanced comprehensive accounting event
     event AccountingUpdate(
         uint256 totalBridgeDeposited,
-        uint256 totalBridgeCanceled,
         uint256 totalBridgedOut,
         uint256 totalBridgedIn,
         uint256 totalAncientWrapped,
@@ -158,28 +152,6 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         uint256 availableInventory
     );
     
-    enum AccountingField {
-        NET_BRIDGE_DEPOSITED,
-        NET_BRIDGED_OUT,
-        NET_ANCIENT_LOCKED,
-        TOTAL_BRIDGE_DEPOSITED,
-        TOTAL_BRIDGE_CANCELED,
-        TOTAL_BRIDGED_OUT,
-        TOTAL_BRIDGED_IN,
-        TOTAL_ANCIENT_WRAPPED,
-        TOTAL_WRAPPED_REDEEMED
-    }
-
-    event AccountingAdjustment(
-        AccountingField indexed field,
-        uint256 oldValue,
-        uint256 newValue,
-        string reason,
-        bytes32 proofHash
-    );
-
-
-
     constructor(
         address tokenAddress, 
         address ancientTokenAddress, 
@@ -189,26 +161,9 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         require(tokenAddress != address(0), "Invalid token address");
         require(ancientTokenAddress != address(0), "Invalid ancient token address");
         require(_feeTreasury != address(0), "Invalid fee recipient address");
-        require(tokenAddress != ancientTokenAddress, "Token addresses must be different");
-        
         token = IERC20(tokenAddress);
         ancient_token = IERC20(ancientTokenAddress);
         feeTreasury = _feeTreasury;
-    }
-
-    /**
-     * @dev Safely transfers tokens and returns actual amount received
-     * Handles fee-on-transfer and deflationary tokens correctly
-     */
-    function _safeTransferFromAndGetActual(
-        IERC20 tokenContract, 
-        address from, 
-        address to, 
-        uint256 amount
-    ) internal returns (uint256 actualReceived) {
-        uint256 balanceBefore = tokenContract.balanceOf(to);
-        tokenContract.safeTransferFrom(from, to, amount);
-        actualReceived = tokenContract.balanceOf(to) - balanceBefore;
     }
     
     function depositToBridgeOut(
@@ -218,46 +173,41 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     ) external payable nonReentrant {
         require(msg.value == BRIDGE_FEE, "Incorrect bridge fee");
         require(tokenAmount > 0, "Amount must be greater than zero");
-        require(tokenAmount >= MIN_BRIDGE_AMOUNT, "Amount below minimum");
-        require(tokenAmount <= MAX_BRIDGE_AMOUNT, "Amount exceeds maximum");
         require(bytes(receivingWalletAddress).length > 0, "Receiving wallet address required");
-        require(bytes(receivingWalletAddress).length <= 100, "Receiving wallet address too long");
         require(bytes(chain).length > 0, "Chain required");
-        require(bytes(chain).length <= 50, "Chain name too long");
-        
-        // Check user has sufficient balance
-        require(token.balanceOf(msg.sender) >= tokenAmount, "Insufficient token balance");
         
         // Check inventory using net accounting
         require(getAvailableBridgeInventory() >= tokenAmount, "Insufficient bridge inventory");
         
-        // Transfer tokens from user to this contract and get actual amount received
-        uint256 actualTokensReceived = _safeTransferFromAndGetActual(
-            token, 
-            msg.sender, 
-            address(this), 
-            tokenAmount
+        // Transfer bridge fee to fee recipient
+        (bool success, ) = feeTreasury.call{value: msg.value}("");
+        require(success, "Fee transfer failed");
+        
+        // Transfer tokens from user to this contract
+        require(
+            token.transferFrom(msg.sender, address(this), tokenAmount),
+            "Token transfer failed"
         );
         
-        // Create deposit record with actual amount received
+        // Create deposit record
         depositsOut[depositOutCounter] = ProofDepositOut({
             depositOutId: depositOutCounter,
             depositor: msg.sender,
-            amount: actualTokensReceived,
+            amount: tokenAmount,
             receivingWalletAddress: receivingWalletAddress,
             chain: chain,
             status: DepositOutStatus.Awaiting,
             txRelease: ""
         });
         
-        // Update accounting - HISTORICAL totals only increase with actual amount
-        totalBridgeDeposited += actualTokensReceived;
-        netBridgeDeposited += actualTokensReceived;
+        // Update BOTH total and net accounting
+        totalBridgeDeposited += tokenAmount;         // Historical tracking
+        netBridgeDeposited += tokenAmount;           // Current pending
         
         emit DepositOutRequested(
             msg.sender,
             depositOutCounter,
-            actualTokensReceived,
+            tokenAmount,
             receivingWalletAddress,
             chain,
             DepositOutStatus.Awaiting
@@ -268,23 +218,21 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         
         holderBridgeOutList[msg.sender].push(depositOutCounter);
         depositOutCounter++;
-        
-        // Transfer bridge fee to fee recipient LAST (reentrancy protection)
-        (bool success, ) = feeTreasury.call{value: msg.value}("");
-        require(success, "Fee transfer failed");
     }
     
     function depositToBridgeIn(
         address receivingWalletAddress,
         string calldata chain,
-        string calldata txDepositProof
+        string calldata txDepositProof  // NEW: Required proof of deposit on source chain
     ) external payable nonReentrant {
         require(msg.value == BRIDGE_FEE, "Incorrect bridge fee");
         require(receivingWalletAddress != address(0), "Receiving wallet address required");
         require(bytes(chain).length > 0, "Chain required");
-        require(bytes(chain).length <= 50, "Chain name too long");
         require(bytes(txDepositProof).length > 0, "Deposit proof required");
-        require(bytes(txDepositProof).length <= 200, "Deposit proof too long");
+        
+        // Transfer bridge fee to fee recipient
+        (bool success, ) = feeTreasury.call{value: msg.value}("");
+        require(success, "Fee transfer failed");
         
         // Create deposit in record with txDepositProof
         depositsIn[depositInCounter] = ProofDepositIn({
@@ -294,7 +242,7 @@ contract BridgeVault is Ownable, ReentrancyGuard {
             receivingWalletAddress: receivingWalletAddress,
             chain: chain,
             status: DepositInStatus.Awaiting,
-            txDepositProof: txDepositProof
+            txDepositProof: txDepositProof  // Set immediately
         });
         
         // Emit event
@@ -309,10 +257,6 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         
         holderBridgeInList[msg.sender].push(depositInCounter);
         depositInCounter++;
-        
-        // Transfer bridge fee to fee recipient LAST (reentrancy protection)
-        (bool success, ) = feeTreasury.call{value: msg.value}("");
-        require(success, "Fee transfer failed");
     }
     
     function cancelBridge(uint256 depositOutId) external nonReentrant {
@@ -325,18 +269,22 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         // Verify contract has sufficient balance
         require(token.balanceOf(address(this)) >= dep.amount, "Insufficient contract balance");
         
-        // Ensure we don't underflow net accounting
+        // Ensure we don't underflow for both accounting systems
+        require(totalBridgeDeposited >= dep.amount, "Total accounting underflow protection");
         require(netBridgeDeposited >= dep.amount, "Net accounting underflow protection");
         
         // Update deposit status
         dep.status = DepositOutStatus.Canceled;
         
-        // Update accounting - HISTORICAL totals remain unchanged, only net changes
-        totalBridgeCanceled += dep.amount;  // NEW: Track cancellations
-        netBridgeDeposited -= dep.amount;    // Decrease pending
+        // Update BOTH total and net accounting
+        totalBridgeDeposited -= dep.amount;          // Historical (this effectively becomes "net deposited that wasn't canceled")
+        netBridgeDeposited -= dep.amount;            // Current pending
         
         // Transfer tokens back to depositor
-        token.safeTransfer(msg.sender, dep.amount);
+        require(
+            token.transfer(msg.sender, dep.amount),
+            "Token transfer failed"
+        );
         
         emit CancelDepositOut(msg.sender, depositOutId, dep.amount);
         
@@ -364,7 +312,6 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     function finalizeBridgeOut(uint256 depositOutId, string calldata txHash) external onlyOwner {
         require(depositOutId < depositOutCounter, "Invalid deposit ID");
         require(bytes(txHash).length > 0, "Transaction hash required");
-        require(bytes(txHash).length <= 200, "Transaction hash too long");
         
         ProofDepositOut storage dep = depositsOut[depositOutId];
         require(dep.status == DepositOutStatus.Locked, "Can only finalize locked deposits");
@@ -375,12 +322,15 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         require(token.balanceOf(address(this)) >= finalizeAmount, "Insufficient contract balance");
         
         // Ensure we don't underflow
+        require(totalBridgeDeposited >= finalizeAmount, "Total accounting underflow protection");
         require(netBridgeDeposited >= finalizeAmount, "Net accounting underflow protection");
         
-        // Update accounting
+        // Update BOTH total and net accounting
         totalBridgedOut += finalizeAmount;           // Historical tracking
-        netBridgedOut += finalizeAmount;               // Increase net tokens on other chains
-        netBridgeDeposited -= finalizeAmount;     // Remove from pending
+        totalBridgeDeposited -= finalizeAmount;      // Remove from pending (historical)
+        
+        netBridgedOut += finalizeAmount;             // Increase net tokens on other chains
+        netBridgeDeposited -= finalizeAmount;        // Remove from pending (current)
         
         // Update deposit status and set txRelease
         dep.status = DepositOutStatus.Finalized;
@@ -391,9 +341,6 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         
         // Emit accounting update
         _emitAccountingUpdate();
-
-    (bool valid, string memory error) = verifyAccountingIntegrity();
-    require(valid, string(abi.encodePacked("Operation broke integrity: ", error)));
     }
     
     function finalizeBridgeIn(
@@ -403,8 +350,6 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     ) external onlyOwner nonReentrant {
         require(depositInId < depositInCounter, "Invalid deposit in ID");
         require(tokenAmount > 0, "Amount must be greater than zero");
-        require(tokenAmount >= MIN_BRIDGE_AMOUNT, "Amount below minimum");
-        require(tokenAmount <= MAX_BRIDGE_AMOUNT, "Amount exceeds maximum");
         
         ProofDepositIn storage depIn = depositsIn[depositInId];
         require(depIn.status == DepositInStatus.Awaiting, "Can only finalize awaiting deposits");
@@ -427,21 +372,28 @@ contract BridgeVault is Ownable, ReentrancyGuard {
             return; // Exit early without processing the bridge
         }
         
+        // Continue with normal processing if valid
+        require(depIn.amount > 0, "Invalid deposit amount");
+        
         // Verify contract has sufficient balance
         require(token.balanceOf(address(this)) >= depIn.amount, "Insufficient contract balance");
         
-        // CRITICAL: Only check if we have tokens bridged out to bring back
+        // CRITICAL FIX: Only check if we have tokens bridged out to bring back
+        // If netBridgedOut is 0, we can't bridge anything back!
         require(netBridgedOut >= depIn.amount, "Insufficient tokens on other chains to bridge back");
         
         // Update deposit in record
         depIn.status = DepositInStatus.Finalized;
         
-        // Update accounting
-        totalBridgedIn += depIn.amount;               // Historical tracking
-        netBridgedOut -= depIn.amount;                 // Decrease net tokens on other chains
+        // Update BOTH total and net accounting
+        totalBridgedIn += depIn.amount;              // Historical tracking
+        netBridgedOut -= depIn.amount;               // Decrease net tokens on other chains
         
-        // Transfer tokens from vault to the receiving address
-        token.safeTransfer(depIn.receivingWalletAddress, depIn.amount);
+        // Transfer tokens from vault to the receiving address (not depositor)
+        require(
+            token.transfer(depIn.receivingWalletAddress, depIn.amount),
+            "Token transfer failed"
+        );
         
         emit BridgeInFinalized(
             depositInId,
@@ -453,98 +405,31 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         // Emit accounting update
         _emitAccountingUpdate();
     }
-
-
-    // emergancy override to handle accounting edge cases that result in stuck tokens
-    function setAccountingValue(
-        AccountingField field,
-        uint256 newValue,
-        string calldata reason,
-        bytes32 proofHash
-    ) external onlyOwner {
-        require(bytes(reason).length >= 20, "Detailed reason required");
-        require(proofHash != bytes32(0), "Proof hash required");
-        
-        uint256 oldValue;
-        
-        if (field == AccountingField.NET_BRIDGE_DEPOSITED) {
-            oldValue = netBridgeDeposited;
-            netBridgeDeposited = newValue;
-            
-        } else if (field == AccountingField.NET_BRIDGED_OUT) {
-            oldValue = netBridgedOut;
-            netBridgedOut = newValue;
-            
-        } else if (field == AccountingField.NET_ANCIENT_LOCKED) {
-            oldValue = netAncientLocked;
-            netAncientLocked = newValue;
-            
-        } else if (field == AccountingField.TOTAL_BRIDGE_DEPOSITED) {
-            oldValue = totalBridgeDeposited;
-            require(newValue >= oldValue, "Total values cannot decrease");
-            totalBridgeDeposited = newValue;
-            
-        } else if (field == AccountingField.TOTAL_BRIDGE_CANCELED) {
-            oldValue = totalBridgeCanceled;
-            require(newValue >= oldValue, "Total values cannot decrease");
-            totalBridgeCanceled = newValue;
-            
-        } else if (field == AccountingField.TOTAL_BRIDGED_OUT) {
-            oldValue = totalBridgedOut;
-            require(newValue >= oldValue, "Total values cannot decrease");
-            totalBridgedOut = newValue;
-            
-        } else if (field == AccountingField.TOTAL_BRIDGED_IN) {
-            oldValue = totalBridgedIn;
-            require(newValue >= oldValue, "Total values cannot decrease");
-            totalBridgedIn = newValue;
-            
-        } else if (field == AccountingField.TOTAL_ANCIENT_WRAPPED) {
-            oldValue = totalAncientWrapped;
-            require(newValue >= oldValue, "Total values cannot decrease");
-            totalAncientWrapped = newValue;
-            
-        } else if (field == AccountingField.TOTAL_WRAPPED_REDEEMED) {
-            oldValue = totalWrappedRedeemed;
-            require(newValue >= oldValue, "Total values cannot decrease");
-            totalWrappedRedeemed = newValue;
-        }
-        
-        emit AccountingAdjustment(field, oldValue, newValue, reason, proofHash);
-        
-        // Run integrity check
-        (bool valid, string memory error) = verifyAccountingIntegrity();
-        require(valid, string(abi.encodePacked("Adjustment breaks integrity: ", error)));
-    }
     
     function wrapAncientForToken(uint256 ancientAmount) external nonReentrant {
         require(ancientAmount > 0, "Amount must be greater than zero");
-        require(ancientAmount >= MIN_BRIDGE_AMOUNT, "Amount below minimum");
-        require(ancientAmount <= MAX_BRIDGE_AMOUNT, "Amount exceeds maximum");
         
-        // Check user has sufficient ancient token balance
-        require(ancient_token.balanceOf(msg.sender) >= ancientAmount, "Insufficient ancient token balance");
-        
-        // Transfer ancient tokens from user to this contract and get actual amount received
-        uint256 actualAncientReceived = _safeTransferFromAndGetActual(
-            ancient_token, 
-            msg.sender, 
-            address(this), 
-            ancientAmount
+        // Transfer ancient tokens from user to this contract
+        require(
+            ancient_token.transferFrom(msg.sender, address(this), ancientAmount),
+            "Ancient token transfer failed"
         );
         
-        // Verify contract has sufficient new token balance for the actual amount received
-        require(token.balanceOf(address(this)) >= actualAncientReceived, "Insufficient token balance");
+        // Verify contract has sufficient new token balance
+        require(token.balanceOf(address(this)) >= ancientAmount, "Insufficient token balance");
         
-        // Update accounting for wrapping with actual amount received
-        totalAncientWrapped += actualAncientReceived;     // Historical wrapping
-        netAncientLocked += actualAncientReceived;           // Current ancient tokens locked
+        // Update BOTH total and net accounting for wrapping
+        totalAncientWrapped += ancientAmount;        // Historical wrapping
+        netAncientLocked += ancientAmount;           // Current ancient tokens locked
         
-        // Transfer new tokens to user (equivalent to what we actually received)
-        token.safeTransfer(msg.sender, actualAncientReceived);
+        // Transfer new tokens to user
+        require(
+            token.transfer(msg.sender, ancientAmount),
+            "Token transfer failed"
+        );
         
-        // Emit event with actual amounts
-        emit AncientTokenWrapped(msg.sender, actualAncientReceived, actualAncientReceived);
+        // Emit event
+        emit AncientTokenWrapped(msg.sender, ancientAmount, ancientAmount);
         
         // Emit accounting update
         _emitAccountingUpdate();
@@ -553,35 +438,31 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     function unwrapTokenForAncient(uint256 tokenAmount) external nonReentrant {
         require(unwrapEnabled, "Unwrapping is currently disabled");
         require(tokenAmount > 0, "Amount must be greater than zero");
-        require(tokenAmount >= MIN_BRIDGE_AMOUNT, "Amount below minimum");
-        require(tokenAmount <= MAX_BRIDGE_AMOUNT, "Amount exceeds maximum");
         
-        // Check user has sufficient token balance
-        require(token.balanceOf(msg.sender) >= tokenAmount, "Insufficient token balance");
+        // Ensure we have enough ancient tokens locked to release
+        require(netAncientLocked >= tokenAmount, "Insufficient ancient token inventory");
         
-        // Transfer tokens from user to this contract and get actual amount received
-        uint256 actualTokensReceived = _safeTransferFromAndGetActual(
-            token, 
-            msg.sender, 
-            address(this), 
-            tokenAmount
+        // Transfer tokens from user to this contract
+        require(
+            token.transferFrom(msg.sender, address(this), tokenAmount),
+            "Token transfer failed"
         );
         
-        // Ensure we have enough ancient tokens locked to release for the actual amount received
-        require(netAncientLocked >= actualTokensReceived, "Insufficient ancient token inventory");
+        // Verify contract has sufficient ancient token balance
+        require(ancient_token.balanceOf(address(this)) >= tokenAmount, "Insufficient ancient token balance");
         
-        // Verify contract has sufficient ancient token balance for the actual amount received
-        require(ancient_token.balanceOf(address(this)) >= actualTokensReceived, "Insufficient ancient token balance");
+        // Update BOTH total and net accounting for unwrapping
+        totalWrappedRedeemed += tokenAmount;         // Historical unwrapping
+        netAncientLocked -= tokenAmount;             // Current ancient tokens locked decreases
         
-        // Update accounting for unwrapping with actual amount received
-        totalWrappedRedeemed += actualTokensReceived;     // Historical unwrapping
-        netAncientLocked -= actualTokensReceived;             // Current ancient tokens locked decreases
+        // Transfer ancient tokens to user
+        require(
+            ancient_token.transfer(msg.sender, tokenAmount),
+            "Ancient token transfer failed"
+        );
         
-        // Transfer ancient tokens to user (equivalent to what we actually received)
-        ancient_token.safeTransfer(msg.sender, actualTokensReceived);
-        
-        // Emit event with actual amounts
-        emit AncientTokenUnwrapped(msg.sender, actualTokensReceived, actualTokensReceived);
+        // Emit event
+        emit AncientTokenUnwrapped(msg.sender, tokenAmount, tokenAmount);
         
         // Emit accounting update
         _emitAccountingUpdate();
@@ -597,24 +478,13 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     }
     
     function changeAdmin(address newAdminAddr) external onlyOwner {
-        require(newAdminAddr != address(0), "Invalid admin address");
         _transferOwnership(newAdminAddr);
-    }
-    
-    // Emergency function to withdraw stuck ETH (fees)
-    function withdrawStuckETH() external onlyOwner {
-        uint256 balance = address(this).balance;
-        require(balance > 0, "No ETH to withdraw");
-        
-        (bool success, ) = owner().call{value: balance}("");
-        require(success, "ETH transfer failed");
     }
     
     // Internal function to emit comprehensive accounting updates
     function _emitAccountingUpdate() internal {
         emit AccountingUpdate(
             totalBridgeDeposited,
-            totalBridgeCanceled,
             totalBridgedOut,
             totalBridgedIn,
             totalAncientWrapped,
@@ -626,18 +496,20 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         );
     }
     
+
     // Updated inventory calculation using net accounting
     function getAvailableBridgeInventory() public view returns (uint256) {
         uint256 contractBalance = token.balanceOf(address(this));
-        require(contractBalance >= netBridgeDeposited, "Accounting corruption detected");
-        return contractBalance - netBridgeDeposited;
+        
+        // Available inventory = total balance - net pending bridge deposits
+        return contractBalance >= netBridgeDeposited ? contractBalance - netBridgeDeposited : 0;
     }
+
 
     // NEW: Comprehensive accounting information with both total and net
     function getFullAccountingInfo() external view returns (
         // Historical totals
         uint256 totalBridgeDeposited_,
-        uint256 totalBridgeCanceled_,
         uint256 totalBridgedOut_,
         uint256 totalBridgedIn_,
         uint256 totalAncientWrapped_,
@@ -654,7 +526,6 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     ) {
         return (
             totalBridgeDeposited,
-            totalBridgeCanceled,
             totalBridgedOut,
             totalBridgedIn,
             totalAncientWrapped,
@@ -669,7 +540,7 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     }
 
     // Enhanced integrity checks for both accounting systems
-    function verifyAccountingIntegrity() public view returns (bool isValid, string memory error) {
+    function verifyAccountingIntegrity() external view returns (bool isValid, string memory error) {
         uint256 contractTokenBalance = token.balanceOf(address(this));
         uint256 contractAncientBalance = ancient_token.balanceOf(address(this));
         
@@ -708,67 +579,6 @@ contract BridgeVault is Ownable, ReentrancyGuard {
             return (false, "Net ancient locked calculation mismatch");
         }
         
-        // Check 8: Total bridge deposited should be >= total bridge canceled
-        if (totalBridgeDeposited < totalBridgeCanceled) {
-            return (false, "Total canceled exceeds total deposited");
-        }
-        
-        // Check 9: Net bridge deposited should be >= 0
-        if (netBridgeDeposited > totalBridgeDeposited) {
-            return (false, "Net bridge deposited exceeds total");
-        }
-        
         return (true, "Full accounting integrity verified");
     }
-
-    // Get holder's bridge history with pagination
-    function getHolderBridgeOutHistory(address holder, uint256 offset, uint256 limit) 
-        external view returns (uint256[] memory depositIds) {
-        uint256[] storage holderList = holderBridgeOutList[holder];
-        uint256 length = holderList.length;
-        
-        if (offset >= length) {
-            return new uint256[](0);
-        }
-        
-        uint256 end = offset + limit;
-        if (end > length) {
-            end = length;
-        }
-        
-        uint256 resultLength = end - offset;
-        depositIds = new uint256[](resultLength);
-        
-        for (uint256 i = 0; i < resultLength; i++) {
-            depositIds[i] = holderList[offset + i];
-        }
-        
-        return depositIds;
-    }
-    
-    // Get holder's bridge in history with pagination
-    function getHolderBridgeInHistory(address holder, uint256 offset, uint256 limit) 
-        external view returns (uint256[] memory depositIds) {
-        uint256[] storage holderList = holderBridgeInList[holder];
-        uint256 length = holderList.length;
-        
-        if (offset >= length) {
-            return new uint256[](0);
-        }
-        
-        uint256 end = offset + limit;
-        if (end > length) {
-            end = length;
-        }
-        
-        uint256 resultLength = end - offset;
-        depositIds = new uint256[](resultLength);
-        
-        for (uint256 i = 0; i < resultLength; i++) {
-            depositIds[i] = holderList[offset + i];
-        }
-        
-        return depositIds;
-    }
-
 }
