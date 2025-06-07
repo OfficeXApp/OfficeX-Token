@@ -209,7 +209,6 @@ const BridgeToSolanaTab = ({
     if (!walletClient || !wallet.isConnected) return;
 
     if (
-      !bridgeFromSolanaForm.amount ||
       !bridgeFromSolanaForm.recipientAddress ||
       !bridgeFromSolanaForm.txDepositProof
     ) {
@@ -230,7 +229,6 @@ const BridgeToSolanaTab = ({
         abi: BRIDGE_VAULT_ABI,
         functionName: "depositToBridgeIn",
         args: [
-          parseEther(bridgeFromSolanaForm.amount),
           bridgeFromSolanaForm.recipientAddress as `0x${string}`,
           "solana",
           bridgeFromSolanaForm.txDepositProof, // NEW: Include the transaction proof
@@ -277,7 +275,7 @@ const BridgeToSolanaTab = ({
       <div>
         <Title level={3}>
           <ArrowRightOutlined style={{ color: "#52c41a", marginRight: 8 }} />
-          Solana Bridge
+          Bridge to Solana
         </Title>
 
         {!wallet.isConnected ? (
@@ -407,24 +405,6 @@ const BridgeToSolanaTab = ({
         )}
 
         <div>
-          <div style={{ marginBottom: 16 }}>
-            <Text strong>Amount (Tokens sent on Solana)</Text>
-            <Input
-              placeholder="0.0"
-              suffix="Tokens"
-              size="large"
-              style={{ marginTop: 8 }}
-              value={bridgeFromSolanaForm.amount}
-              onChange={(e) =>
-                setBridgeFromSolanaForm((prev) => ({
-                  ...prev,
-                  amount: e.target.value,
-                }))
-              }
-              disabled={!wallet.isConnected}
-            />
-          </div>
-
           <div style={{ marginBottom: 16 }}>
             <Text strong>Base Recipient Address</Text>
             <Input

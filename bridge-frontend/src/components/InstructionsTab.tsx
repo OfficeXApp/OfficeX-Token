@@ -1,7 +1,6 @@
 import {
   InfoCircleOutlined,
   ArrowRightOutlined,
-  ArrowLeftOutlined,
   SyncOutlined,
   MailOutlined,
 } from "@ant-design/icons";
@@ -72,12 +71,13 @@ const InstructionsTab = ({
               icon: <SyncOutlined />,
             },
             {
-              title: "Bridge to Solana",
+              title: "Bridge Solana",
               description: (
                 <div>
                   <Paragraph>
-                    You must have the wrapped Base token. Deposit Base token and
-                    specify your Solana address to receive at.
+                    You must have the wrapped Base token or Solana token.
+                    Deposit Base token or Solana token and specify your wallet
+                    address to receive at.
                   </Paragraph>
                   <ul>
                     <li>Bridging is centralized and manual</li>
@@ -88,40 +88,11 @@ const InstructionsTab = ({
                     </li>
                   </ul>
                   <Button type="primary" onClick={() => setActiveTab("2")}>
-                    Go to "Bridge to Solana" tab <ArrowRightOutlined />
+                    Go to "Bridge Solana" tab <ArrowRightOutlined />
                   </Button>
                 </div>
               ),
               icon: <ArrowRightOutlined />,
-            },
-            {
-              title: "Bridge back to Base from Solana",
-              description: (
-                <div>
-                  <Paragraph>
-                    <strong>Step 1:</strong> Send Solana tokens to the Solana
-                    bridge address with memo of the Base EVM wallet you want to
-                    receive at.
-                  </Paragraph>
-                  <Paragraph>
-                    <strong>Step 2:</strong> Request bridging with the same EVM
-                    wallet to receive at. This is important to match onchain
-                    proofs.
-                  </Paragraph>
-                  <ul>
-                    <li>Bridging is centralized and manual</li>
-                    <li>Processing time: up to 48 hours</li>
-                    <li>Processed in sequential order</li>
-                    <li>
-                      Fee: <Tag color="orange">{BRIDGE_FEE} ETH</Tag>
-                    </li>
-                  </ul>
-                  <Button type="primary" onClick={() => setActiveTab("3")}>
-                    Go to "Bridge to Base" tab <ArrowLeftOutlined />
-                  </Button>
-                </div>
-              ),
-              icon: <ArrowLeftOutlined />,
             },
           ]}
         />

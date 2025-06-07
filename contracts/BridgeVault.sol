@@ -31,7 +31,7 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     address public feeTreasury;
     
     uint256 public constant BRIDGE_FEE = 0.002 ether;
-    uint256 public constant MAX_BRIDGE_AMOUNT = 1000000 * 10**18; // 1M tokens max per transaction
+    uint256 public constant MAX_BRIDGE_AMOUNT = 20 * 1000000 * 10**18; // 20M tokens max per transaction
     uint256 public constant MIN_BRIDGE_AMOUNT = 1 * 10**15; // 0.001 tokens minimum
     
     uint256 public depositOutCounter;

@@ -8,12 +8,14 @@ import {
   Input,
   notification,
   Steps,
+  Tabs,
   Typography,
 } from "antd";
 import WalletSection from "./WalletSection";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ANCIENT_BASE_TOKEN,
+  BASE_TOKEN,
   BRIDGE_BASE_CONTRACT_ADDRESS,
   BRIDGE_VAULT_ABI,
   ERC20_ABI,
@@ -24,6 +26,7 @@ import {
   createPublicClient,
   createWalletClient,
   custom,
+  getContract,
   http,
   parseEther,
 } from "viem";
@@ -58,6 +61,33 @@ const MigrateAncientTab = ({
   const [migrateForm, setMigrateForm] = useState<MigrateFormData>({
     amount: "",
   });
+
+  const [unwrapEnabled, setUnwrapEnabled] = useState(true);
+  const [activeSubTab, setActiveSubTab] = useState("wrap");
+  const [unwrapForm, setUnwrapForm] = useState<MigrateFormData>({
+    amount: "",
+  });
+
+  useEffect(() => {
+    const checkUnwrapEnabled = async () => {
+      try {
+        const bridgeContract = getContract({
+          address: BRIDGE_BASE_CONTRACT_ADDRESS as `0x${string}`,
+          abi: BRIDGE_VAULT_ABI,
+          client: publicClient,
+        });
+
+        const enabled = await bridgeContract.read.unwrapEnabled();
+        setUnwrapEnabled(enabled as boolean);
+      } catch (error) {
+        console.error("Failed to check unwrap status:", error);
+      }
+    };
+
+    if (wallet.isConnected) {
+      checkUnwrapEnabled();
+    }
+  }, [wallet.isConnected]);
 
   // Viem clients
   const publicClient = createPublicClient({
@@ -165,6 +195,56 @@ const MigrateAncientTab = ({
     }
   };
 
+  // Add this function after handleMigrateAncient
+  const handleUnwrapToken = async () => {
+    const walletClient = getWalletClient();
+    if (!walletClient || !wallet.isConnected) return;
+
+    if (!unwrapForm.amount) {
+      notification.error({
+        message: "Invalid Input",
+        description: "Please enter an amount",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // First approve the wrapped token spending
+      const approved = await approveToken(BASE_TOKEN, unwrapForm.amount);
+      if (!approved) return;
+
+      // Then call the unwrap function
+      const hash = await walletClient.writeContract({
+        address: BRIDGE_BASE_CONTRACT_ADDRESS as `0x${string}`,
+        abi: BRIDGE_VAULT_ABI,
+        functionName: "unwrapTokenForAncient",
+        args: [parseEther(unwrapForm.amount)],
+        account: wallet.address as `0x${string}`,
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash });
+
+      notification.success({
+        message: "Unwrap Successful",
+        description:
+          "Your wrapped tokens have been converted back to ancient tokens",
+      });
+
+      setUnwrapForm({ amount: "" });
+      fetchTokenInfo(); // Refresh balances
+    } catch (error) {
+      console.error("Unwrap failed:", error);
+      notification.error({
+        message: "Unwrap Failed",
+        description: "Failed to unwrap tokens",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 600, margin: "0 auto" }}>
       <WalletSection
@@ -179,7 +259,6 @@ const MigrateAncientTab = ({
           <SyncOutlined style={{ color: "#722ed1", marginRight: 8 }} />
           Migrate Ancient Token
         </Title>
-
         {!wallet.isConnected ? (
           <Alert
             message="Wallet Not Connected"
@@ -196,9 +275,7 @@ const MigrateAncientTab = ({
             } tokens to wrapped ${
               tokenInfo.base?.symbol || "Base"
             } tokens. Available: ${
-              tokenInfo.ancient
-                ? parseFloat(tokenInfo.ancient.balance).toFixed(4)
-                : "0"
+              tokenInfo.ancient ? tokenInfo.ancient.balance : "0"
             } ancient tokens`}
             type="info"
             showIcon
@@ -206,88 +283,163 @@ const MigrateAncientTab = ({
           />
         )}
 
-        <Card
-          size="small"
-          style={{ backgroundColor: "#f9f0ff", marginBottom: 24 }}
-        >
-          <Title level={4}>Migration Process</Title>
-          <Steps
-            size="small"
-            items={[
-              {
-                title: "Approve Token",
-                description: "Allow the contract to spend your ancient tokens",
-              },
-              {
-                title: "Migrate",
-                description: "Convert ancient tokens to wrapped tokens 1:1",
-              },
-              {
-                title: "Use Bridge",
-                description: "Use wrapped tokens for bridging operations",
-              },
-            ]}
-          />
-        </Card>
-
-        <div>
-          <div style={{ marginBottom: 16 }}>
-            <Text strong>Amount (Ancient Base Tokens)</Text>
-            <Input
-              placeholder="0.0"
-              suffix={tokenInfo.ancient?.symbol || "ANCIENT-BASE"}
-              size="large"
-              style={{ marginTop: 8 }}
-              value={migrateForm.amount}
-              onChange={(e) => setMigrateForm({ amount: e.target.value })}
-              disabled={!wallet.isConnected}
-            />
-            {wallet.isConnected && tokenInfo.ancient && (
-              <Button
-                type="link"
-                size="small"
-                onClick={() =>
-                  setMigrateForm({ amount: tokenInfo.ancient!.balance })
-                }
-              >
-                Use max balance
-              </Button>
-            )}
-          </div>
-
-          <Alert
-            message="1:1 Exchange Rate"
-            description="You will receive the same amount of wrapped Base tokens as ancient tokens you migrate."
-            type="success"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-
-          <Button
-            type="primary"
-            onClick={handleMigrateAncient}
-            size="large"
-            block
-            icon={<SyncOutlined />}
-            disabled={!wallet.isConnected}
-            loading={loading}
+        <Tabs activeKey={activeSubTab} onChange={setActiveSubTab} type="card">
+          <Tabs.TabPane
+            tab={
+              <span>
+                <SyncOutlined />
+                Wrap Ancient
+              </span>
+            }
+            key="wrap"
           >
-            Migrate to Wrapped Tokens
-          </Button>
-        </div>
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <Text strong>Amount (Ancient Base Tokens)</Text>
+                <Input
+                  placeholder="0.0"
+                  suffix={
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <Button
+                        type="link"
+                        size="small"
+                        style={{ padding: 0, height: "auto", fontSize: 12 }}
+                        onClick={() =>
+                          setMigrateForm({
+                            amount:
+                              tokenInfo.ancient?.balance.replace(/,/g, "") ||
+                              "0",
+                          })
+                        }
+                        disabled={
+                          !wallet.isConnected || !tokenInfo.ancient?.balance
+                        }
+                      >
+                        MAX
+                      </Button>
+                      <span>{tokenInfo.ancient?.symbol || "ANCIENT-BASE"}</span>
+                    </div>
+                  }
+                  size="large"
+                  style={{ marginTop: 8 }}
+                  value={migrateForm.amount}
+                  onChange={(e) => setMigrateForm({ amount: e.target.value })}
+                  disabled={!wallet.isConnected}
+                />
+              </div>
 
+              <Alert
+                message="1:1 Exchange Rate"
+                description="You will receive the same amount of wrapped Base tokens as ancient tokens you migrate, minus any burn or tax applied by the token contract"
+                type="success"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+
+              <Button
+                type="primary"
+                onClick={handleMigrateAncient}
+                size="large"
+                block
+                icon={<SyncOutlined />}
+                disabled={!wallet.isConnected}
+                loading={loading}
+              >
+                Migrate to Wrapped Tokens
+              </Button>
+            </div>
+          </Tabs.TabPane>
+
+          <Tabs.TabPane
+            tab={
+              <span>
+                <SyncOutlined />
+                Unwrap to Ancient
+              </span>
+            }
+            key="unwrap"
+            disabled={!unwrapEnabled}
+          >
+            {!unwrapEnabled ? (
+              <Alert
+                message="Unwrapping Disabled"
+                description="Unwrapping is currently disabled by the contract administrator."
+                type="warning"
+                showIcon
+                style={{ marginBottom: 24 }}
+              />
+            ) : (
+              <>
+                <div>
+                  <div style={{ marginBottom: 16 }}>
+                    <Text strong>Amount (Wrapped Base Tokens)</Text>
+                    <Input
+                      placeholder="0.0"
+                      suffix={
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <Button
+                            type="link"
+                            size="small"
+                            style={{ padding: 0, height: "auto", fontSize: 12 }}
+                            onClick={() =>
+                              setUnwrapForm({
+                                amount:
+                                  tokenInfo.base?.balance.replace(/,/g, "") ||
+                                  "0",
+                              })
+                            }
+                            disabled={
+                              !wallet.isConnected || !tokenInfo.base?.balance
+                            }
+                          >
+                            MAX
+                          </Button>
+                          <span>{tokenInfo.base?.symbol || "WBASE"}</span>
+                        </div>
+                      }
+                      size="large"
+                      style={{ marginTop: 8 }}
+                      value={unwrapForm.amount}
+                      onChange={(e) =>
+                        setUnwrapForm({ amount: e.target.value })
+                      }
+                      disabled={!wallet.isConnected}
+                    />
+                  </div>
+
+                  <Alert
+                    message="1:1 Exchange Rate"
+                    description="You will receive the same amount of ancient tokens as wrapped tokens you unwrap."
+                    type="success"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                  />
+
+                  <Button
+                    type="primary"
+                    onClick={handleUnwrapToken}
+                    size="large"
+                    block
+                    icon={<SyncOutlined />}
+                    disabled={!wallet.isConnected || !unwrapEnabled}
+                    loading={loading}
+                  >
+                    Unwrap to Ancient Tokens
+                  </Button>
+                </div>
+              </>
+            )}
+          </Tabs.TabPane>
+        </Tabs>
         <Divider />
-
-        <Card size="small" style={{ backgroundColor: "#fff7e6" }}>
-          <Title level={5}>After Migration</Title>
-          <Paragraph>
-            Once you have wrapped Base tokens, you can use the "Bridge to
-            Solana" tab to bridge your tokens to other chains.
-          </Paragraph>
-          <Button type="link" onClick={() => setActiveTab("2")}>
-            Go to Bridge to Solana <ArrowRightOutlined />
-          </Button>
-        </Card>
       </Card>
     </div>
   );

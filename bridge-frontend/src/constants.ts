@@ -1,8 +1,8 @@
 // Contract addresses and constants
-export const ANCIENT_BASE_TOKEN = "0xaC441DB73794D8716496199D8b6af44e939b810F";
-export const BASE_TOKEN = "0xB63E5600Bb251D7AeDe2CcA2c0C18c56c7FcD816";
+export const ANCIENT_BASE_TOKEN = "0x766506Cdb3dEA84d44c99cB6122D735583786a62";
+export const BASE_TOKEN = "0xe9fd3AbbE02E04c1f01Eea56FC9B022fFda38736";
 export const BRIDGE_BASE_CONTRACT_ADDRESS =
-  "0x6cd40E13Fa9F23d8690ea62236fe18e8d56C518e";
+  "0x747966d1A2ba7529Be0C626Ab881E47920BA5D38";
 export const SOLANA_TOKEN = "mntp4nmZjsdRZzJ8h4JXPyq4xi5rfoc3pcJgfQhyxmy";
 export const SOLANA_BRIDGE_WALLET =
   "56Hkvv6vKCUibhFy1y4wT8eq7cgqD6mXqhzenPpnV2UL";
@@ -92,6 +92,20 @@ export const BRIDGE_VAULT_ABI = [
     type: "function",
   },
   {
+    inputs: [{ name: "tokenAmount", type: "uint256" }],
+    name: "unwrapTokenForAncient",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "unwrapEnabled",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "getAvailableBridgeInventory",
     outputs: [{ name: "", type: "uint256" }],
@@ -167,6 +181,110 @@ export const BRIDGE_VAULT_ABI = [
     inputs: [],
     name: "depositInCounter",
     outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  // Additional accounting functions that might be useful
+  {
+    inputs: [],
+    name: "netAncientLocked",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "totalAncientWrapped",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "totalWrappedRedeemed",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  // Cancel bridge function
+  {
+    inputs: [{ name: "depositOutId", type: "uint256" }],
+    name: "cancelBridge",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  // Get full accounting info
+  {
+    inputs: [],
+    name: "getFullAccountingInfo",
+    outputs: [
+      { name: "totalBridgeDeposited_", type: "uint256" },
+      { name: "totalBridgeCanceled_", type: "uint256" },
+      { name: "totalBridgedOut_", type: "uint256" },
+      { name: "totalBridgedIn_", type: "uint256" },
+      { name: "totalAncientWrapped_", type: "uint256" },
+      { name: "totalWrappedRedeemed_", type: "uint256" },
+      { name: "netBridgeDeposited_", type: "uint256" },
+      { name: "netBridgedOut_", type: "uint256" },
+      { name: "netAncientLocked_", type: "uint256" },
+      { name: "tokenBalance", type: "uint256" },
+      { name: "ancientBalance", type: "uint256" },
+      { name: "availableInventory", type: "uint256" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  // Get holder history with pagination
+  {
+    inputs: [
+      { name: "holder", type: "address" },
+      { name: "offset", type: "uint256" },
+      { name: "limit", type: "uint256" },
+    ],
+    name: "getHolderBridgeOutHistory",
+    outputs: [{ name: "depositIds", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "holder", type: "address" },
+      { name: "offset", type: "uint256" },
+      { name: "limit", type: "uint256" },
+    ],
+    name: "getHolderBridgeInHistory",
+    outputs: [{ name: "depositIds", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  // Constants
+  {
+    inputs: [],
+    name: "MIN_BRIDGE_AMOUNT",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "MAX_BRIDGE_AMOUNT",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  // Token addresses
+  {
+    inputs: [],
+    name: "token",
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "ancient_token",
+    outputs: [{ name: "", type: "address" }],
     stateMutability: "view",
     type: "function",
   },

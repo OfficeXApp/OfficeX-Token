@@ -12,7 +12,6 @@ import {
 import { createPublicClient, http, formatEther, getContract } from "viem";
 import { base } from "viem/chains";
 import BridgeToSolanaTab from "./components/BridgeToSolana";
-import BridgeToBaseTab from "./components/BridgeToBase";
 import MigrateAncientTab from "./components/MigrateAncient";
 import InstructionsTab from "./components/InstructionsTab";
 import {
@@ -182,14 +181,7 @@ const BridgeApp: React.FC = () => {
           ICP Bridge
         </Space>
       ),
-      children: (
-        <BridgeToBaseTab
-          tokenInfo={tokenInfo}
-          wallet={wallet}
-          setWallet={setWallet}
-          bridgeInventory={bridgeInventory}
-        />
-      ),
+      children: <></>,
       disabled: true,
     },
     {
