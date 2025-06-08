@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Tabs, Card, Typography, Space, notification, Spin } from "antd";
 import {
   InfoCircleOutlined,
@@ -46,12 +46,16 @@ const BridgeApp: React.FC = () => {
   const [bridgeInventory, setBridgeInventory] = useState("0");
 
   // Viem clients
-  const publicClient = createPublicClient({
-    chain: base,
-    transport: http(
-      "https://base-mainnet.g.alchemy.com/v2/EAF1m-3-59-iXzmNbA99cvWq9pFovfxu"
-    ),
-  });
+  const publicClient = useMemo(
+    () =>
+      createPublicClient({
+        chain: base,
+        transport: http(
+          "https://base-mainnet.g.alchemy.com/v2/EAF1m-3-59-iXzmNbA99cvWq9pFovfxu"
+        ),
+      }),
+    []
+  );
 
   // Fetch token information
   const fetchTokenInfo = async () => {
@@ -156,35 +160,6 @@ const BridgeApp: React.FC = () => {
       ),
     },
     {
-      key: "2",
-      label: (
-        <Space>
-          <ArrowRightOutlined />
-          Solana Bridge
-        </Space>
-      ),
-      children: (
-        <BridgeToSolanaTab
-          tokenInfo={tokenInfo}
-          fetchTokenInfo={fetchTokenInfo}
-          wallet={wallet}
-          setWallet={setWallet}
-          bridgeInventory={bridgeInventory}
-        />
-      ),
-    },
-    {
-      key: "3",
-      label: (
-        <Space>
-          <ArrowRightOutlined />
-          ICP Bridge
-        </Space>
-      ),
-      children: <></>,
-      disabled: true,
-    },
-    {
       key: "4",
       label: (
         <Space>
@@ -204,6 +179,24 @@ const BridgeApp: React.FC = () => {
       ),
     },
     {
+      key: "2",
+      label: (
+        <Space>
+          <ArrowRightOutlined />
+          Solana Bridge
+        </Space>
+      ),
+      children: (
+        <BridgeToSolanaTab
+          tokenInfo={tokenInfo}
+          fetchTokenInfo={fetchTokenInfo}
+          wallet={wallet}
+          setWallet={setWallet}
+          bridgeInventory={bridgeInventory}
+        />
+      ),
+    },
+    {
       key: "5", // NEW: Bridge Logs tab
       label: (
         <Space>
@@ -211,7 +204,25 @@ const BridgeApp: React.FC = () => {
           Bridge Logs
         </Space>
       ),
-      children: <BridgeLogsTab wallet={wallet} />,
+      children: (
+        <BridgeLogsTab
+          tokenInfo={tokenInfo}
+          wallet={wallet}
+          setWallet={setWallet}
+          bridgeInventory={bridgeInventory}
+        />
+      ),
+    },
+    {
+      key: "3",
+      label: (
+        <Space>
+          <ArrowRightOutlined />
+          ICP Bridge
+        </Space>
+      ),
+      children: <></>,
+      disabled: true,
     },
   ];
 

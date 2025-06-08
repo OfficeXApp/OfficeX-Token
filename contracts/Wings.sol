@@ -13,7 +13,7 @@ contract Wings is ERC20, Ownable, ReentrancyGuard {
     uint256 public constant BURN_RATE_BPS = 100; // 1%
     uint256 public constant BASIS_POINTS = 10000;
     
-    event FeesEarned(address indexed from, uint256 burnAmount);
+    event FeesEarned(address indexed from, uint256 feeAmount);
 
     constructor(
         address _adminAddress,
@@ -34,12 +34,12 @@ contract Wings is ERC20, Ownable, ReentrancyGuard {
     ) internal override nonReentrant {
         require(amount > 0, "Transfer amount must be greater than zero");
 
-        uint256 burnAmount = (amount * BURN_RATE_BPS) / BASIS_POINTS;
-        uint256 transferAmount = amount - burnAmount;
+        uint256 feeAmount = (amount * BURN_RATE_BPS) / BASIS_POINTS;
+        uint256 transferAmount = amount - feeAmount;
         
-        super._update(from, treasuryAddress, burnAmount);
+        super._update(from, treasuryAddress, feeAmount);
         super._update(from, to, transferAmount);
         
-        emit FeesEarned(from, burnAmount);
+        emit FeesEarned(from, feeAmount);
     }
 }

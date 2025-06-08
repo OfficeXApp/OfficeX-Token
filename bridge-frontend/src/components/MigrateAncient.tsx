@@ -12,7 +12,7 @@ import {
   Typography,
 } from "antd";
 import WalletSection from "./WalletSection";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   ANCIENT_BASE_TOKEN,
   BASE_TOKEN,
@@ -90,12 +90,16 @@ const MigrateAncientTab = ({
   }, [wallet.isConnected]);
 
   // Viem clients
-  const publicClient = createPublicClient({
-    chain: base,
-    transport: http(
-      "https://base-mainnet.g.alchemy.com/v2/EAF1m-3-59-iXzmNbA99cvWq9pFovfxu"
-    ),
-  });
+  const publicClient = useMemo(
+    () =>
+      createPublicClient({
+        chain: base,
+        transport: http(
+          "https://base-mainnet.g.alchemy.com/v2/EAF1m-3-59-iXzmNbA99cvWq9pFovfxu"
+        ),
+      }),
+    []
+  );
 
   const getWalletClient = () => {
     if (typeof window !== "undefined" && window.ethereum) {

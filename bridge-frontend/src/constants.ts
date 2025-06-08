@@ -1,8 +1,8 @@
 // Contract addresses and constants
-export const ANCIENT_BASE_TOKEN = "0x766506Cdb3dEA84d44c99cB6122D735583786a62";
-export const BASE_TOKEN = "0xe9fd3AbbE02E04c1f01Eea56FC9B022fFda38736";
+export const ANCIENT_BASE_TOKEN = "0x364d9Eba8b050E3529e161eA5032C279dA6BAF8b";
+export const BASE_TOKEN = "0xf989de40C3D0010446260fc8666D2A4a6f8b7173";
 export const BRIDGE_BASE_CONTRACT_ADDRESS =
-  "0x747966d1A2ba7529Be0C626Ab881E47920BA5D38";
+  "0x1B3Fd0AAbB9259eF598ca18a4C11D3d9e68E44B4";
 export const SOLANA_TOKEN = "mntp4nmZjsdRZzJ8h4JXPyq4xi5rfoc3pcJgfQhyxmy";
 export const SOLANA_BRIDGE_WALLET =
   "56Hkvv6vKCUibhFy1y4wT8eq7cgqD6mXqhzenPpnV2UL";
@@ -151,6 +151,7 @@ export const BRIDGE_VAULT_ABI = [
       { name: "chain", type: "string" },
       { name: "status", type: "uint8" },
       { name: "txRelease", type: "string" },
+      { name: "timestamp", type: "uint256" },
     ],
     stateMutability: "view",
     type: "function",
@@ -166,6 +167,7 @@ export const BRIDGE_VAULT_ABI = [
       { name: "chain", type: "string" },
       { name: "status", type: "uint8" },
       { name: "txDepositProof", type: "string" },
+      { name: "timestamp", type: "uint256" },
     ],
     stateMutability: "view",
     type: "function",
@@ -285,6 +287,48 @@ export const BRIDGE_VAULT_ABI = [
     inputs: [],
     name: "ancient_token",
     outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "holder", type: "address" },
+      { name: "index", type: "uint256" },
+    ],
+    name: "holderWrapOperationList",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "wrapOperationId", type: "uint256" }],
+    name: "ancientWrapOperations",
+    outputs: [
+      { name: "wrapOperationId", type: "uint256" },
+      { name: "user", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "operationType", type: "uint8" },
+      { name: "timestamp", type: "uint256" },
+      { name: "blockNumber", type: "uint256" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "wrapOperationCounter",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "holder", type: "address" },
+      { name: "offset", type: "uint256" },
+      { name: "limit", type: "uint256" },
+    ],
+    name: "getHolderAncientHistory",
+    outputs: [{ name: "operationIds", type: "uint256[]" }],
     stateMutability: "view",
     type: "function",
   },

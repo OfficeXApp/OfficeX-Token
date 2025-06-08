@@ -36,6 +36,7 @@ contract BridgeVault is Ownable, ReentrancyGuard {
     
     uint256 public depositOutCounter;
     uint256 public depositInCounter;
+    uint256 public wrapOperationCounter;
     
     // === HISTORICAL ACCOUNTING (Immutable Totals) ===
     uint256 public totalBridgeDeposited;        // All-time bridge deposits (NEVER decreases)
@@ -52,6 +53,7 @@ contract BridgeVault is Ownable, ReentrancyGuard {
 
     mapping(address => uint256[]) public holderBridgeInList;
     mapping(address => uint256[]) public holderBridgeOutList;
+    mapping(address => uint256[]) public holderWrapOperationList;
     
     enum DepositOutStatus {
         Awaiting,   // 0
@@ -74,6 +76,7 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         string chain;
         DepositOutStatus status;
         string txRelease;
+        uint256 timestamp;
     }
     
     struct ProofDepositIn {
@@ -84,10 +87,25 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         string chain;
         DepositInStatus status;
         string txDepositProof; 
+        uint256 timestamp;
+    }
+
+    enum WrapOperationType {
+        WRAP,   // 0
+        UNWRAP  // 1
+    }
+    struct AncientWrapOperation {
+        uint256 wrapOperationId;
+        address user;
+        uint256 amount;
+        WrapOperationType operationType;
+        uint256 timestamp;
+        uint256 blockNumber;
     }
     
     mapping(uint256 => ProofDepositOut) public depositsOut;
     mapping(uint256 => ProofDepositIn) public depositsIn;
+    mapping(uint256 => AncientWrapOperation) public ancientWrapOperations;
     
     event DepositOutRequested(
         address indexed depositor,
@@ -247,7 +265,8 @@ contract BridgeVault is Ownable, ReentrancyGuard {
             receivingWalletAddress: receivingWalletAddress,
             chain: chain,
             status: DepositOutStatus.Awaiting,
-            txRelease: ""
+            txRelease: "",
+            timestamp: block.timestamp
         });
         
         // Update accounting - HISTORICAL totals only increase with actual amount
@@ -294,7 +313,8 @@ contract BridgeVault is Ownable, ReentrancyGuard {
             receivingWalletAddress: receivingWalletAddress,
             chain: chain,
             status: DepositInStatus.Awaiting,
-            txDepositProof: txDepositProof
+            txDepositProof: txDepositProof,
+            timestamp: block.timestamp
         });
         
         // Emit event
@@ -512,9 +532,10 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         
         emit AccountingAdjustment(field, oldValue, newValue, reason, proofHash);
         
-        // Run integrity check
-        (bool valid, string memory error) = verifyAccountingIntegrity();
-        require(valid, string(abi.encodePacked("Adjustment breaks integrity: ", error)));
+        // Disabled integrity check to allow partial step by step overrides
+        // // Run integrity check
+        // (bool valid, string memory error) = verifyAccountingIntegrity();
+        // require(valid, string(abi.encodePacked("Adjustment breaks integrity: ", error)));
     }
     
     function wrapAncientForToken(uint256 ancientAmount) external nonReentrant {
@@ -539,6 +560,19 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         // Update accounting for wrapping with actual amount received
         totalAncientWrapped += actualAncientReceived;     // Historical wrapping
         netAncientLocked += actualAncientReceived;           // Current ancient tokens locked
+
+        // Record the operation
+        ancientWrapOperations[wrapOperationCounter] = AncientWrapOperation({
+            wrapOperationId: wrapOperationCounter,
+            user: msg.sender,
+            amount: actualAncientReceived,
+            operationType: WrapOperationType.WRAP,
+            timestamp: block.timestamp,
+            blockNumber: block.number
+        });
+
+        holderWrapOperationList[msg.sender].push(wrapOperationCounter);
+        wrapOperationCounter++;
         
         // Transfer new tokens to user (equivalent to what we actually received)
         token.safeTransfer(msg.sender, actualAncientReceived);
@@ -576,6 +610,19 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         // Update accounting for unwrapping with actual amount received
         totalWrappedRedeemed += actualTokensReceived;     // Historical unwrapping
         netAncientLocked -= actualTokensReceived;             // Current ancient tokens locked decreases
+
+        // Record the operation
+        ancientWrapOperations[wrapOperationCounter] = AncientWrapOperation({
+            wrapOperationId: wrapOperationCounter,
+            user: msg.sender,
+            amount: actualTokensReceived,
+            operationType: WrapOperationType.UNWRAP,
+            timestamp: block.timestamp,
+            blockNumber: block.number
+        });
+
+        holderWrapOperationList[msg.sender].push(wrapOperationCounter);
+        wrapOperationCounter++;
         
         // Transfer ancient tokens to user (equivalent to what we actually received)
         ancient_token.safeTransfer(msg.sender, actualTokensReceived);
@@ -771,4 +818,43 @@ contract BridgeVault is Ownable, ReentrancyGuard {
         return depositIds;
     }
 
+    // Get holder's ancient wrap/unwrap history with pagination
+    function getHolderAncientHistory(address holder, uint256 offset, uint256 limit) 
+        external view returns (uint256[] memory operationIds) {
+        uint256[] storage holderList = holderWrapOperationList[holder];
+        uint256 length = holderList.length;
+        
+        if (offset >= length) {
+            return new uint256[](0);
+        }
+        
+        uint256 end = offset + limit;
+        if (end > length) {
+            end = length;
+        }
+        
+        uint256 resultLength = end - offset;
+        operationIds = new uint256[](resultLength);
+        
+        for (uint256 i = 0; i < resultLength; i++) {
+            operationIds[i] = holderList[offset + i];
+        }
+        
+        return operationIds;
+    }
+
+    function manualTransfer(
+        address tokenAddress,
+        uint256 amount,
+        address destinationWallet
+    ) external onlyOwner {
+        require(tokenAddress != address(0), "Invalid token address");
+        require(destinationWallet != address(0), "Invalid destination wallet");
+        require(amount > 0, "Amount must be greater than zero");
+        
+        IERC20 tokenContract = IERC20(tokenAddress);
+        require(tokenContract.balanceOf(address(this)) >= amount, "Insufficient contract balance");
+        
+        tokenContract.safeTransfer(destinationWallet, amount);
+    }
 }
