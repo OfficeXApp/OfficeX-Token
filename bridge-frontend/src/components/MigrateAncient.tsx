@@ -1,4 +1,4 @@
-import { ArrowRightOutlined, SyncOutlined } from "@ant-design/icons";
+import { SyncOutlined } from "@ant-design/icons";
 
 import {
   Alert,
@@ -7,7 +7,6 @@ import {
   Divider,
   Input,
   notification,
-  Steps,
   Tabs,
   Typography,
 } from "antd";
@@ -32,7 +31,7 @@ import {
 } from "viem";
 import { base } from "viem/chains";
 
-const { Title, Paragraph, Text } = Typography;
+const { Title, Text } = Typography;
 
 interface MigrateFormData {
   amount: string;
@@ -184,6 +183,12 @@ const MigrateAncientTab = ({
       notification.success({
         message: "Migration Successful",
         description: "Your ancient tokens have been migrated to wrapped tokens",
+        btn: (
+          <Button type="primary" size="small" onClick={() => setActiveTab("5")}>
+            View Logs
+          </Button>
+        ),
+        duration: 0, // Don't auto-close
       });
 
       setMigrateForm({ amount: "" });
@@ -234,6 +239,12 @@ const MigrateAncientTab = ({
         message: "Unwrap Successful",
         description:
           "Your wrapped tokens have been converted back to ancient tokens",
+        btn: (
+          <Button type="primary" size="small" onClick={() => setActiveTab("5")}>
+            View Logs
+          </Button>
+        ),
+        duration: 0, // Don't auto-close
       });
 
       setUnwrapForm({ amount: "" });

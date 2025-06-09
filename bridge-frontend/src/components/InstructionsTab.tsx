@@ -37,6 +37,25 @@ const InstructionsTab = ({
       />
       <ContractLinks />
 
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          margin: "32px 0px",
+        }}
+      >
+        <iframe
+          width="560"
+          height="315"
+          src="https://www.youtube.com/embed/YVY18lDRbPU?si=PCNPX8EWBITOBClO"
+          title="YouTube video player"
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allowFullScreen
+        ></iframe>
+      </div>
+
       <Card>
         <Title level={2}>
           <InfoCircleOutlined style={{ color: "#1890ff", marginRight: 8 }} />

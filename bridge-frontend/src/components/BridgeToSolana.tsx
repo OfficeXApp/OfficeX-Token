@@ -49,6 +49,7 @@ const BridgeToSolanaTab = ({
   tokenInfo,
   setWallet,
   bridgeInventory,
+  setActiveTab,
 }: {
   fetchTokenInfo: () => void;
   wallet: WalletState;
@@ -58,9 +59,10 @@ const BridgeToSolanaTab = ({
   };
   setWallet: (wallet: WalletState) => void;
   bridgeInventory: string;
+  setActiveTab: (tab: string) => void;
 }) => {
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("bridge-out");
+  const [activeTabInner, setActiveTabInner] = useState("bridge-out");
 
   // Form states
   const [bridgeToSolanaForm, setBridgeToSolanaForm] = useState<BridgeFormData>({
@@ -180,6 +182,12 @@ const BridgeToSolanaTab = ({
         message: "Bridge Request Submitted",
         description:
           "Your bridge request has been submitted and will be processed within 48 hours",
+        btn: (
+          <Button type="primary" size="small" onClick={() => setActiveTab("5")}>
+            View Logs
+          </Button>
+        ),
+        duration: 0, // Don't auto-close
       });
 
       setBridgeToSolanaForm({ amount: "", recipientAddress: "" });
@@ -243,6 +251,12 @@ const BridgeToSolanaTab = ({
         message: "Bridge Request Submitted",
         description:
           "Your bridge-in request has been submitted and will be processed within 48 hours",
+        btn: (
+          <Button type="primary" size="small" onClick={() => setActiveTab("5")}>
+            View Logs
+          </Button>
+        ),
+        duration: 0, // Don't auto-close
       });
 
       setBridgeFromSolanaForm({
@@ -512,7 +526,11 @@ const BridgeToSolanaTab = ({
           </Col>
         </Row>
 
-        <Tabs activeKey={activeTab} onChange={setActiveTab} type="card">
+        <Tabs
+          activeKey={activeTabInner}
+          onChange={setActiveTabInner}
+          type="card"
+        >
           <TabPane
             tab={
               <span>

@@ -173,8 +173,8 @@ const BridgeApp: React.FC = () => {
           fetchTokenInfo={fetchTokenInfo}
           wallet={wallet}
           setWallet={setWallet}
-          setActiveTab={setActiveTab}
           bridgeInventory={bridgeInventory}
+          setActiveTab={setActiveTab}
         />
       ),
     },
@@ -193,6 +193,7 @@ const BridgeApp: React.FC = () => {
           wallet={wallet}
           setWallet={setWallet}
           bridgeInventory={bridgeInventory}
+          setActiveTab={setActiveTab}
         />
       ),
     },
